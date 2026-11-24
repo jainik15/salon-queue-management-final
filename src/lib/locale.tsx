@@ -493,7 +493,7 @@ const extraTranslations: Array<[string, string]> = [
   ['Please select at least one service', 'ઓછામાં ઓછી એક સેવા પસંદ કરો'],
   ['Please enter your name', 'તમારું નામ દાખલ કરો'],
   ['Classic Cut', 'ક્લાસિક કટ'],
-  ['Beard Sculpt', 'બીયર્ડ સ્કલ્પ્ટ'],
+  ['Beard Style', 'દાઢી સ્ટાઇલ'],
   ['Fade', 'ફેડ'],
   ['Kids Cut', 'કિડ્સ કટ'],
   ['Hair Spa', 'હેર સ્પા'],
@@ -602,7 +602,7 @@ const extraTranslations: Array<[string, string]> = [
   ['Open Station Cockpit →', 'સ્ટેશન ડેશબોર્ડ ખોલો →'],
 ]
 Object.assign(gu, Object.fromEntries(extraTranslations))
-const serviceNames = ['Classic Cut', 'Beard Sculpt', 'Fade', 'Kids Cut', 'Hair Spa', 'D-Tan']
+const serviceNames = ['Classic Cut', 'Beard Style', 'Fade', 'Kids Cut', 'Hair Spa', 'D-Tan']
 const serviceNamesInGujarati = serviceNames.map(name => [gu[name], name] as const)
 
 type LocaleValue = { lang: Lang; setLang: (lang: Lang) => void; t: (text: string) => string }

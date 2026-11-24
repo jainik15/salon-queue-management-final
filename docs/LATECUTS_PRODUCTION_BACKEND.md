@@ -31,11 +31,11 @@ The database catalog is the frontend and backend source for service selection, d
 | ID | Service | Duration preserved | Price |
 |---|---|---:|---:|
 | `classic-cut` | Classic Cut | 25 min | ₹199 |
-| `beard-sculpt` | Beard Sculpt | 20 min | ₹149 |
+| `beard-sculpt` | Beard Style | 20 min | ₹149 |
 | `royal-fade` | Fade | 35 min | ₹299 |
 | `kids-cut` | Kids Cut | 20 min | ₹149 |
 | `head-spa` | Hair Spa | 45 min | ₹149 |
-| `bridal` | D-Tan | 90 min | ₹300 |
+| `bridal` | D-Tan | 90 min | ₹499 |
 
 The migration inserts these values and updates only matching service-catalog rows on conflict. Queue rows and stylist IDs are not renamed by the migration.
 

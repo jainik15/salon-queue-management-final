@@ -37,11 +37,11 @@ alter table public.services add column if not exists sort_order smallint not nul
 
 insert into public.services (id, name_en, name_gu, icon, duration, price, sort_order) values
   ('classic-cut', 'Classic Cut', 'ક્લાસિક કટ', '✂️', 25, 199, 1),
-  ('beard-sculpt', 'Beard Sculpt', 'બીયર્ડ સ્કલ્પ્ટ', '🧔', 20, 149, 2),
+  ('beard-sculpt', 'Beard Style', 'દાઢી સ્ટાઇલ', '🧔', 20, 149, 2),
   ('royal-fade', 'Fade', 'ફેડ', '💈', 35, 299, 3),
   ('kids-cut', 'Kids Cut', 'કિડ્સ કટ', '🧒', 20, 149, 4),
   ('head-spa', 'Hair Spa', 'હેર સ્પા', '🌿', 45, 149, 5),
-  ('bridal', 'D-Tan', 'ડી-ટેન', '✨', 90, 300, 6)
+  ('bridal', 'D-Tan', 'ડી-ટેન', '✨', 90, 499, 6)
 on conflict (id) do update set
   name_en = excluded.name_en,
   name_gu = excluded.name_gu,
@@ -417,14 +417,14 @@ begin
     ('1', 'LX-01', 'Priya', 'Fade', 35, 'zara', 'Ramesh', 'serving', 0, now() - interval '40 minutes', now() - interval '5 minutes', 0, 'en', array['royal-fade']),
     ('2', 'LX-02', 'Rahul', 'Classic Cut', 25, 'marcus', 'Vinod', 'serving', 0, now() - interval '35 minutes', now() - interval '8 minutes', 0, 'en', array['classic-cut']),
     ('3', 'LX-03', 'Aisha', 'Hair Spa', 45, 'zara', 'Ramesh', 'waiting', 1, now() - interval '25 minutes', null, 32, 'en', array['head-spa']),
-    ('4', 'LX-04', 'Kabir', 'Beard Sculpt', 20, 'marcus', 'Vinod', 'waiting', 1, now() - interval '20 minutes', null, 28, 'en', array['beard-sculpt']),
+    ('4', 'LX-04', 'Kabir', 'Beard Style', 20, 'marcus', 'Vinod', 'waiting', 1, now() - interval '20 minutes', null, 28, 'en', array['beard-sculpt']),
     ('5', 'LX-05', 'Meera', 'Kids Cut', 20, 'dev', 'Arjun', 'waiting', 1, now() - interval '15 minutes', null, 25, 'en', array['kids-cut']),
     ('6', 'LX-06', 'Arjun', 'Fade', 35, 'zara', 'Ramesh', 'waiting', 2, now() - interval '10 minutes', null, 64, 'en', array['royal-fade']),
     ('7', 'LX-07', 'Nisha', 'Classic Cut', 25, 'marcus', 'Vinod', 'waiting', 2, now() - interval '5 minutes', null, 56, 'en', array['classic-cut']);
   insert into public.reviews (token, customer_name, barber_id, barber_name, service, rating, comment, aspects, created_at) values
     ('LX-00', 'Aditi V.', 'zara', 'Ramesh', 'Hair Spa', 5, 'A relaxing Hair Spa visit.', '{"waitTime":true,"styling":true,"ambiance":true}', now() - interval '45 minutes'),
     ('LX-00b', 'Rohan K.', 'marcus', 'Vinod', 'Fade', 5, 'A clean, precise Fade.', '{"waitTime":true,"styling":true,"ambiance":true}', now() - interval '90 minutes'),
-    ('LX-00c', 'Tanvi M.', 'dev', 'Arjun', 'Beard Sculpt', 4, 'A gentle and precise service.', '{"waitTime":true,"styling":true,"ambiance":true}', now() - interval '140 minutes'),
+    ('LX-00c', 'Tanvi M.', 'dev', 'Arjun', 'Beard Style', 4, 'A gentle and precise service.', '{"waitTime":true,"styling":true,"ambiance":true}', now() - interval '140 minutes'),
     ('LX-00d', 'Siddharth P.', 'marcus', 'Vinod', 'Classic Cut', 5, 'A smooth salon visit.', '{"waitTime":true,"styling":true,"ambiance":true}', now() - interval '210 minutes');
   update public.barbers set
     status = case id when 'dev' then 'break' else 'available' end,

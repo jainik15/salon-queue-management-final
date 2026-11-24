@@ -49,16 +49,16 @@ Routes are defined in `src/App.tsx`; `/reception` and `/admin` render the same `
 
 ## 6. Existing service catalog and prices
 
-Service IDs, names, durations, icons and LateCuts prices are defined in `src/lib/utils.ts`. The confirmed LateCuts catalog is:
+The Supabase service catalog is the source for service IDs, names, durations, icons and prices; the frontend loads it through the Node API. `src/lib/utils.ts` normalizes legacy service labels for display. The confirmed LateCuts catalog is:
 
 | Service | ID | Duration | LateCuts price |
 |---|---|---:|---:|
 | Classic Cut | `classic-cut` | 25 min | ₹199 |
-| Beard Sculpt | `beard-sculpt` | 20 min | ₹149 |
+| Beard Style | `beard-sculpt` | 20 min | ₹149 |
 | Fade | `royal-fade` | 35 min | ₹299 |
 | Kids Cut | `kids-cut` | 20 min | ₹149 |
 | Hair Spa | `head-spa` | 45 min | ₹149 |
-| D-Tan | `bridal` | 90 min | ₹300 |
+| D-Tan | `bridal` | 90 min | ₹499 |
 
 This is the current authoritative LateCuts catalog. It supersedes inherited source-project names and prices; legacy IDs and durations remain unchanged. Existing persisted queue entries keep their stored values and are normalized for display by `getServiceDisplayName` in `src/lib/utils.ts`.
 
