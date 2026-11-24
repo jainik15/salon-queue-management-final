@@ -3,7 +3,7 @@ services:
     name: latecuts-api
     runtime: node
     buildCommand: npm ci
-    startCommand: npm run server
+    startCommand: npm start
     healthCheckPath: /api/health
     autoDeployTrigger: 'off'
     envVars:

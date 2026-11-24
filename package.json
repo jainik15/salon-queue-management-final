@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "concurrently -n \"SERVER,CLIENT\" -c \"blue.bold,cyan.bold\" \"node server/server.js\" \"vite\"",
     "dev:client": "vite",
+    "start": "node server/server.js",
     "server": "node server/server.js",
     "build": "tsc && vite build",
     "preview": "vite preview"
