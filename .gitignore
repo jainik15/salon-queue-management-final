@@ -20,4 +20,5 @@ pnpm-debug.log*
 .vscode
 .idea
 .vercel
-server/data/database.json
+# Local persistent queue data and backups must never be committed.
+server/data/

@@ -1,17 +1,19 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { useQueueStore } from '../stores/queueStore'
 import { triggerConfetti } from '../lib/confetti'
 import { getServiceDisplayName } from '../lib/utils'
+import { apiFetch } from '../lib/api'
+import type { QueueEntry } from '../types'
 import { Scissors, Star, ThumbsUp, ThumbsDown, CheckCircle, ArrowRight, Heart } from 'lucide-react'
 
 export default function CustomerFeedback() {
   const { token } = useParams<{ token: string }>()
-  const { queue, addFeedback } = useQueueStore()
-
-  const entry = queue.find(e => e.token.toLowerCase() === (token || '').toLowerCase()) ||
-                queue.find(e => e.status === 'completed') ||
-                queue[0]
+  const { addFeedback } = useQueueStore()
+  const [entry, setEntry] = useState<QueueEntry | null>(null)
+  const [isLoading, setIsLoading] = useState(true)
+  const [loadError, setLoadError] = useState('')
+  const [submitError, setSubmitError] = useState('')
 
   const [rating, setRating] = useState<number>(5)
   const [hoverRating, setHoverRating] = useState<number>(0)
@@ -22,6 +24,28 @@ export default function CustomerFeedback() {
     ambiance: null,
   })
   const [submitted, setSubmitted] = useState(false)
+  const [isSubmitting, setIsSubmitting] = useState(false)
+
+  useEffect(() => {
+    let cancelled = false
+    if (!token) { setLoadError('Open the private feedback link from your completed queue pass.'); setIsLoading(false); return }
+    apiFetch(`/api/feedback/${encodeURIComponent(token)}`)
+      .then(async response => {
+        const data = await response.json().catch(() => null)
+        if (!response.ok || !data?.entry) throw new Error(data?.error || 'This completed queue pass could not be found.')
+        if (cancelled) return
+        setEntry(data.entry as QueueEntry)
+        if (data.review) {
+          setRating(Number(data.review.rating) || 5)
+          setComment(data.review.comment || '')
+          setAspects(data.review.aspects || { waitTime: null, styling: null, ambiance: null })
+          setSubmitted(true)
+        }
+      })
+      .catch(error => { if (!cancelled) setLoadError(error instanceof Error ? error.message : 'Feedback is unavailable.') })
+      .finally(() => { if (!cancelled) setIsLoading(false) })
+    return () => { cancelled = true }
+  }, [token])
 
   const ratingLabels: { [k: number]: string } = {
     1: 'Needs Improvement',
@@ -31,21 +55,34 @@ export default function CustomerFeedback() {
     5: 'Exceptional Luxury Craftsmanship ✨',
   }
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    setSubmitted(true)
-    triggerConfetti()
-    addFeedback({
-      token: entry?.token || 'LX-07',
-      customer_name: entry?.customer_name || 'Guest Patron',
-      barber_id: entry?.barber_id || 'marcus',
-      barber_name: entry?.barber_name || 'Vinod',
-      service: entry?.service || 'Fade',
-      rating,
-      comment: comment.trim() || undefined,
-      aspects,
-    })
+    if (!entry?.public_access_token || isSubmitting) return
+    setIsSubmitting(true)
+    setSubmitError('')
+    try {
+      await addFeedback(entry.public_access_token, {
+        rating,
+        comment: comment.trim() || undefined,
+        aspects,
+      })
+      setSubmitted(true)
+      triggerConfetti()
+    } catch (error) {
+      setSubmitError(error instanceof Error ? error.message : 'Feedback could not be saved. Please try again.')
+    } finally {
+      setIsSubmitting(false)
+    }
   }
+
+  if (isLoading) return <main className="lc-screen lc-feedback min-h-screen flex items-center justify-center p-6">Loading your feedback pass…</main>
+  if (loadError || !entry) return (
+    <main className="lc-screen lc-feedback min-h-screen flex flex-col items-center justify-center gap-4 p-6 text-center">
+      <h1 className="font-display text-2xl font-bold">Feedback link unavailable</h1>
+      <p>{loadError || 'Open the private feedback link from your completed queue pass.'}</p>
+      <Link to="/join" className="btn-primary px-5 py-2.5">Return to check-in</Link>
+    </main>
+  )
 
   return (
     <div
@@ -73,11 +110,11 @@ export default function CustomerFeedback() {
             {/* Patron Summary */}
             <div className="text-center mb-6">
               <span className="text-xs uppercase tracking-widest font-mono font-bold px-3 py-1 rounded-lg inline-block mb-3 bg-blue-50 text-blue-700 border border-blue-100">
-                TOKEN: {entry?.token || 'LX-07'}
+                TOKEN: {entry.token}
               </span>
               <h1 className="font-display text-3xl font-black text-slate-950">How was your visit?</h1>
               <p className="text-xs text-slate-500 mt-1">
-                Styled by <strong data-locale-skip className="text-slate-900">{entry?.barber_name || 'Vinod'}</strong> · <span>{getServiceDisplayName(entry?.service || 'Fade')}</span>
+                Styled by <strong data-locale-skip className="text-slate-900">{entry.barber_name}</strong> · <span>{getServiceDisplayName(entry.service)}</span>
               </p>
             </div>
 
@@ -169,8 +206,9 @@ export default function CustomerFeedback() {
                 </div>
               </div>
 
-              <button type="submit" className="w-full btn-primary py-3.5 flex items-center justify-center gap-2 text-sm font-bold">
-                <span>Submit Experience</span>
+              {submitError && <p role="alert" className="text-sm text-rose-700">{submitError}</p>}
+              <button type="submit" disabled={isSubmitting} className="w-full btn-primary py-3.5 flex items-center justify-center gap-2 text-sm font-bold disabled:opacity-60">
+                <span>{isSubmitting ? 'Saving…' : 'Submit Experience'}</span>
                 <ArrowRight size={16} />
               </button>
             </form>
@@ -183,7 +221,7 @@ export default function CustomerFeedback() {
               <CheckCircle size={32} />
             </div>
 
-            <h2 className="font-display text-3xl font-black text-slate-950 mb-2">Thank you, {entry?.customer_name ? <span data-locale-skip>{entry.customer_name}</span> : 'Guest'}!</h2>
+            <h2 className="font-display text-3xl font-black text-slate-950 mb-2">Thank you, <span data-locale-skip>{entry.customer_name}</span>!</h2>
             <p className="text-xs text-slate-500 max-w-xs mx-auto mb-6">
               Your feedback helps us continuously perfect our craft. We look forward to seeing you again.
             </p>

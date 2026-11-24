@@ -9,11 +9,11 @@ export default function BarberDashboard() {
   const { id } = useParams<{ id: string }>()
   const routeId = id || 'marcus'
   const barberId = ({ ramesh: 'zara', vinod: 'marcus', arjun: 'dev' } as Record<string, string>)[routeId] || routeId
-  const { queue, barbers, callNext, markDone, markAbsent, updateBarberStatus } = useQueueStore()
+  const { queue, barbers, syncError, callNext, markDone, markAbsent, updateBarberStatus } = useQueueStore()
 
-  const barber = barbers.find(b => b.id === barberId) || barbers[0]
-  const currentlyServing = queue.find(e => e.barber_id === barber.id && e.status === 'serving')
-  const waitingQueue = queue.filter(e => e.barber_id === barber.id && e.status === 'waiting')
+  const barber = barbers.find(b => b.id === barberId)
+  const currentlyServing = barber ? queue.find(e => e.barber_id === barber.id && e.status === 'serving') : undefined
+  const waitingQueue = barber ? queue.filter(e => e.barber_id === barber.id && e.status === 'waiting') : []
 
   const [serviceTimer, setServiceTimer] = useState<number>(0)
 
@@ -43,8 +43,21 @@ export default function BarberDashboard() {
   const isOvertime = serviceTimer > targetSeconds
 
   const handleCallNext = () => {
+    if (!barber) return
     playChime()
-    callNext(barber.id)
+    void callNext(barber.id).catch(error => window.alert(error instanceof Error ? error.message : 'Next customer could not be called.'))
+  }
+
+  if (!barber) {
+    return (
+      <main className="lc-screen lc-workspace min-h-screen flex items-center justify-center p-6 text-center">
+        <div>
+          <h1 className="font-display text-2xl font-bold">Stylist station unavailable</h1>
+          <p className="mt-2 text-sm">{syncError || 'The stylist roster is not available from the queue service.'}</p>
+          <Link to="/join" className="btn-primary inline-flex mt-5 px-5 py-2.5">Return to check-in</Link>
+        </div>
+      </main>
+    )
   }
 
   return (
@@ -80,7 +93,10 @@ export default function BarberDashboard() {
         <div className="flex items-center gap-3 w-full sm:w-auto justify-between sm:justify-end">
           <div className="flex items-center p-1 rounded-2xl bg-slate-100 border border-slate-200">
             <button
-              onClick={() => updateBarberStatus(barber.id, 'available')}
+              onClick={() => {
+                void updateBarberStatus(barber.id, 'available')
+                  .catch(error => window.alert(error instanceof Error ? error.message : 'Stylist status could not be saved.'))
+              }}
               className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
                 barber.status === 'available'
                   ? 'bg-blue-600 text-white shadow-sm'
@@ -90,7 +106,10 @@ export default function BarberDashboard() {
               Active
             </button>
             <button
-              onClick={() => updateBarberStatus(barber.id, 'break')}
+              onClick={() => {
+                void updateBarberStatus(barber.id, 'break')
+                  .catch(error => window.alert(error instanceof Error ? error.message : 'Stylist status could not be saved.'))
+              }}
               className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
                 barber.status === 'break'
                   ? 'bg-amber-500 text-white shadow-sm'
@@ -180,7 +199,10 @@ export default function BarberDashboard() {
                 {/* Stylist Action Buttons */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                   <button
-                    onClick={() => markDone(currentlyServing.id)}
+                    onClick={() => {
+                      void markDone(currentlyServing.id)
+                        .catch(error => window.alert(error instanceof Error ? error.message : 'Service could not be completed.'))
+                    }}
                     className="py-3.5 px-4 rounded-xl font-bold flex items-center justify-center gap-2 text-sm bg-emerald-500 hover:bg-emerald-600 text-white shadow-md transition-all"
                   >
                     <CheckCircle size={18} />
@@ -188,7 +210,10 @@ export default function BarberDashboard() {
                   </button>
 
                   <button
-                    onClick={() => markAbsent(currentlyServing.id)}
+                    onClick={() => {
+                      void markAbsent(currentlyServing.id)
+                        .catch(error => window.alert(error instanceof Error ? error.message : 'Customer could not be marked absent.'))
+                    }}
                     className="py-3.5 px-4 rounded-xl text-sm font-bold flex items-center justify-center gap-2 transition-all bg-white/10 hover:bg-white/20 text-rose-200 border border-rose-300/30"
                   >
                     <UserX size={18} />

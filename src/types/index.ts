@@ -24,6 +24,8 @@ export interface QueueEntry {
   timestamp_completed?: Date
   estimated_wait: number
   language: 'en' | 'gu'
+  service_ids?: string[]
+  public_access_token?: string
 }
 
 export interface Service {

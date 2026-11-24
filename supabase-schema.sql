@@ -1,5 +1,7 @@
--- LUXE CUTS PostgreSql Database Schema for Supabase
--- Run this in your Supabase SQL Editor (Dashboard -> SQL Editor)
+/* HISTORICAL, DEPRECATED SCHEMA — DO NOT APPLY.
+   The legacy policies below allow unrestricted public reads and writes.
+   Use supabase/migrations/202611250001_latecuts_backend.sql after a verified backup
+   and explicit approval to apply the schema to a Supabase project.
 
 -- 1. Create Barbers Table
 CREATE TABLE IF NOT EXISTS barbers (
@@ -53,3 +55,4 @@ VALUES
   ('marcus', 'Marcus', 'Royal Fade & Classic', 'available', 'M', 3, 9, 28),
   ('dev', 'Dev', 'Beard & Kids', 'break', 'D', 1, 6, 25)
 ON CONFLICT (id) DO NOTHING;
+*/

@@ -1,6 +1,6 @@
 # LateCuts Implementation Roadmap
 
-This is a future-work map, not authorization to execute later phases. Paths were checked against the current repository; `.env.example` is not present today and is listed only as a possible future addition. No phase below is implemented by this document.
+This roadmap preserves the original phase plan. **Status update (2026-11-25):** Backend integration, server-side auth/RLS migration preparation, and Vercel/Render configuration have since been implemented locally. The migration has not been applied, production data has not been changed, and nothing has been deployed. See [`LATECUTS_PRODUCTION_BACKEND.md`](./LATECUTS_PRODUCTION_BACKEND.md) for current configuration, review gates and remaining validation.
 
 ## Phase 1: Baseline, specifications and preservation checklist
 

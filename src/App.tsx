@@ -25,7 +25,7 @@ export default function App() {
   const { initRealtimeSync } = useQueueStore()
 
   useEffect(() => {
-    // Mount cross-tab real-time and Supabase / backend database synchronization
+    // Mount cross-tab refresh notices and backend/SSE synchronization
     const cleanup = initRealtimeSync()
     return () => {
       if (typeof cleanup === 'function') {
@@ -57,7 +57,14 @@ export default function App() {
             <Route path="/token/:id" element={<CustomerToken />} />
             <Route path="/status/:id" element={<CustomerToken />} />
             <Route path="/display" element={<LiveDisplay />} />
-            <Route path="/barber/:id" element={<BarberDashboard />} />
+            <Route
+              path="/barber/:id"
+              element={
+                <ProtectedRoute>
+                  <BarberDashboard />
+                </ProtectedRoute>
+              }
+            />
             <Route path="/login" element={<AdminLogin />} />
             <Route
               path="/reception"

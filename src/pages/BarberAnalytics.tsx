@@ -3,7 +3,7 @@ import { Link, useNavigate } from 'react-router-dom'
 import { useQueueStore } from '../stores/queueStore'
 import { useAuthStore } from '../stores/authStore'
 import { useLocale } from '../lib/locale'
-import { getServiceDisplayName, SERVICES } from '../lib/utils'
+import { getServiceDisplayName } from '../lib/utils'
 import {
   TrendingUp,
   BarChart3,
@@ -21,7 +21,7 @@ import {
 } from 'lucide-react'
 
 export default function BarberAnalytics() {
-  const { barbers, queue, reviews } = useQueueStore()
+  const { barbers, queue, reviews, services } = useQueueStore()
   const { lang } = useLocale()
   const { logout } = useAuthStore()
   const navigate = useNavigate()
@@ -42,94 +42,87 @@ export default function BarberAnalytics() {
     ? barbers
     : barbers.filter(b => b.id === selectedBarberId)
 
-  const filteredQueue = selectedBarberId === 'all'
+  const barberQueue = selectedBarberId === 'all'
     ? queue
     : queue.filter(q => q.barber_id === selectedBarberId)
 
-  const filteredReviews = selectedBarberId === 'all'
+  const barberReviews = selectedBarberId === 'all'
     ? reviews
     : reviews.filter(r => r.barber_id === selectedBarberId)
 
-  // 2. Dynamic time multipliers
-  const timeMultiplier = timeRange === 'today' ? 1 : timeRange === 'week' ? 5.8 : 24.5
+  // Filters use the persisted event timestamps; the dashboard does not synthesize traffic.
+  const salonDateParts = new Intl.DateTimeFormat('en-GB', {
+    timeZone: 'Asia/Kolkata', year: 'numeric', month: '2-digit', day: '2-digit',
+  }).formatToParts(new Date()).reduce((parts, part) => ({ ...parts, [part.type]: part.value }), {} as Record<string, string>)
+  const rangeCalendarDate = new Date(Date.UTC(Number(salonDateParts.year), Number(salonDateParts.month) - 1, Number(salonDateParts.day)))
+  if (timeRange === 'week') rangeCalendarDate.setUTCDate(rangeCalendarDate.getUTCDate() - 6)
+  if (timeRange === 'month') rangeCalendarDate.setUTCDate(1)
+  const rangeStart = new Date(Date.UTC(
+    rangeCalendarDate.getUTCFullYear(), rangeCalendarDate.getUTCMonth(), rangeCalendarDate.getUTCDate(), -5, -30,
+  ))
+  const filteredQueue = barberQueue.filter(entry => new Date(entry.timestamp_joined).getTime() >= rangeStart.getTime())
+  const filteredReviews = barberReviews.filter(review => new Date(review.created_at).getTime() >= rangeStart.getTime())
 
-  // 3. Dynamic Total Served count
-  const realCompletedCount = filteredQueue.filter(q => q.status === 'completed').length
-  const baselineServed = filteredBarbers.reduce((sum, b) => sum + (b.served_today || 0), 0)
-  const totalCompleted = Math.round((baselineServed + realCompletedCount) * timeMultiplier)
+  // 3. Total completed entries inside the selected date range.
+  const totalCompleted = filteredQueue.filter(q => q.status === 'completed').length
 
   // 4. Dynamic Avg Duration
   const completedEntries = filteredQueue.filter(q => q.status === 'completed' && q.service_duration > 0)
   const avgDuration = completedEntries.length > 0
     ? Math.round(completedEntries.reduce((sum, q) => sum + q.service_duration, 0) / completedEntries.length)
-    : filteredBarbers.length > 0
-      ? Math.round(filteredBarbers.reduce((sum, b) => sum + b.avg_duration, 0) / filteredBarbers.length)
-      : 28
+      : 0
 
   // 5. Dynamic Satisfaction Rating
   const avgRating = filteredReviews.length > 0
     ? (filteredReviews.reduce((sum, r) => sum + r.rating, 0) / filteredReviews.length).toFixed(2)
-    : '4.92'
+    : '—'
 
   // 6. Dynamic Hourly Traffic Histogram
-  const baseHours = ['10 AM', '11 AM', '12 PM', '1 PM', '2 PM', '3 PM', '4 PM', '5 PM', '6 PM', '7 PM']
-  const hourlyTrafficRaw = baseHours.map((hour, idx) => {
-    const queueMatches = filteredQueue.filter(q => {
-      const h = new Date(q.timestamp_joined).getHours()
-      const slotHour = idx + 10
-      return h === slotHour
-    }).length
-
-    const curve = [3, 6, 8, 11, 7, 5, 8, 10, 8, 4][idx] || 5
-    const multiplier = timeRange === 'today' ? 1 : timeRange === 'week' ? 5.4 : 22.8
-    const count = Math.round((curve * (filteredBarbers.length / 3) + queueMatches * 2) * multiplier)
+  const hours = Array.from({ length: 12 }, (_, index) => index + 9)
+  const hourlyTrafficRaw = hours.map(hourValue => {
+    const hour = `${hourValue % 12 || 12} ${hourValue < 12 ? 'AM' : 'PM'}`
+    const count = filteredQueue.filter(entry => new Date(entry.timestamp_joined).getHours() === hourValue).length
     return { hour, count }
   })
 
-  const maxCount = Math.max(...hourlyTrafficRaw.map(h => h.count), 1)
-  const peakHourItem = hourlyTrafficRaw.reduce((max, h) => (h.count > max.count ? h : max), hourlyTrafficRaw[0])
+  const maxCount = Math.max(...hourlyTrafficRaw.map(h => h.count), 0)
+  const peakHourItem = maxCount > 0
+    ? hourlyTrafficRaw.reduce((max, h) => (h.count > max.count ? h : max), hourlyTrafficRaw[0])
+    : null
 
   const dynamicHourlyTraffic = hourlyTrafficRaw.map(h => ({
     hour: h.hour,
     count: h.count,
-    height: `${Math.max(18, Math.round((h.count / maxCount) * 100))}%`,
-    peak: h.hour === peakHourItem.hour,
+    height: h.count ? `${Math.max(18, Math.round((h.count / Math.max(maxCount, 1)) * 100))}%` : '0%',
+    peak: Boolean(peakHourItem && h.hour === peakHourItem.hour),
   }))
 
   // 7. Dynamic Service Demand Breakdown
-  const serviceCounts: { [serviceName: string]: number } = {}
+  const serviceCounts: { [serviceName: string]: number } = Object.fromEntries(services.map(service => [service.name_en, 0]))
   filteredQueue.forEach(q => {
-    const serviceName = getServiceDisplayName(q.service)
-    serviceCounts[serviceName] = (serviceCounts[serviceName] || 0) + 1
+    const serviceNames = q.service_ids?.length
+      ? q.service_ids.map(id => services.find(service => service.id === id)?.name_en).filter((name): name is string => Boolean(name))
+      : q.service.split(' + ').map(getServiceDisplayName)
+    serviceNames.forEach(serviceName => {
+      serviceCounts[serviceName] = (serviceCounts[serviceName] || 0) + 1
+    })
   })
-  filteredReviews.forEach(r => {
-    const serviceName = getServiceDisplayName(r.service)
-    serviceCounts[serviceName] = (serviceCounts[serviceName] || 0) + 1
-  })
-
-  const standardServices = SERVICES.map(service => service.name_en)
-  standardServices.forEach(srv => {
-    if (!serviceCounts[srv]) {
-      serviceCounts[srv] = Math.max(1, Math.round(2 * (timeRange === 'today' ? 1 : timeRange === 'week' ? 4 : 16)))
-    }
-  })
-
-  const totalDemands = Object.values(serviceCounts).reduce((a, b) => a + b, 0) || 1
+  const totalDemands = Object.values(serviceCounts).reduce((a, b) => a + b, 0)
   const colorPalette = ['#C78B43', '#9D7543', '#887B68', '#B89B6E', '#D5BE97']
 
   const serviceBreakdown = Object.entries(serviceCounts)
     .sort((a, b) => b[1] - a[1])
-    .slice(0, SERVICES.length)
+    .slice(0, services.length)
     .map(([name, count], idx) => ({
       name,
       count,
-      percent: Math.round((count / totalDemands) * 100),
+      percent: totalDemands ? Math.round((count / totalDemands) * 100) : 0,
       color: colorPalette[idx % colorPalette.length],
     }))
 
   // Real-time active counts
-  const currentlyServingCount = filteredQueue.filter(q => q.status === 'serving').length
-  const waitingCount = filteredQueue.filter(q => q.status === 'waiting').length
+  const currentlyServingCount = barberQueue.filter(q => q.status === 'serving').length
+  const waitingCount = barberQueue.filter(q => q.status === 'waiting').length
 
   const exportCSV = () => {
     const headers = 'Token,Patron Name,Service,Stylist,Status,Duration (mins),Wait (mins),Timestamp\n'
@@ -292,21 +285,21 @@ export default function BarberAnalytics() {
             <div className="font-display text-2xl sm:text-4xl font-black text-slate-950">{totalCompleted}</div>
             <div className="flex items-center gap-1 text-[11px] sm:text-xs text-emerald-600 font-bold mt-2">
               <TrendingUp size={14} />
-              <span>+{Math.min(24, Math.round(realCompletedCount * 4 + 12))}% vs baseline</span>
+              <span>{timeRange === 'today' ? 'Today' : timeRange === 'week' ? 'Last 7 days' : 'This month'}</span>
             </div>
           </div>
 
           <div className="card-clean p-4 sm:p-5">
             <span className="text-[10px] sm:text-xs uppercase font-bold text-slate-500 block mb-1">Avg Duration</span>
-            <div className="font-display text-2xl sm:text-4xl font-black text-blue-700">{avgDuration}m</div>
-            <div className="text-[10px] sm:text-xs text-slate-400 font-medium mt-2">Target: 30m standard</div>
+            <div className="font-display text-2xl sm:text-4xl font-black text-blue-700">{avgDuration ? `${avgDuration}m` : '—'}</div>
+            <div className="text-[10px] sm:text-xs text-slate-400 font-medium mt-2">From completed service records</div>
           </div>
 
           <div className="card-clean p-4 sm:p-5">
             <span className="text-[10px] sm:text-xs uppercase font-bold text-slate-500 block mb-1">Peak Rush</span>
-            <div className="font-display text-2xl sm:text-4xl font-black text-sky-600">{peakHourItem.hour}</div>
+            <div className="font-display text-2xl sm:text-4xl font-black text-sky-600">{peakHourItem?.hour || '—'}</div>
             <div className="text-[10px] sm:text-xs text-blue-600 font-semibold mt-2">
-              {peakHourItem.count} patrons in peak window
+              {peakHourItem ? `${peakHourItem.count} check-ins in peak hour` : 'No check-ins in this period'}
             </div>
           </div>
 
@@ -333,7 +326,7 @@ export default function BarberAnalytics() {
                 </p>
               </div>
               <span className="text-xs px-2.5 py-1 rounded-full font-bold bg-blue-100 text-blue-700 self-start sm:self-auto">
-                Peak: {peakHourItem.hour} ({peakHourItem.count} guests)
+                {peakHourItem ? `Peak: ${peakHourItem.hour} (${peakHourItem.count} guests)` : 'No check-ins in this period'}
               </span>
             </div>
 
@@ -362,9 +355,9 @@ export default function BarberAnalytics() {
               </div>
             </div>
             <div className="flex items-center justify-between text-[11px] text-slate-400 mt-3 pt-2">
-              <span>Morning Shift (10 AM)</span>
-              <span>Afternoon Peak (1 PM - 3 PM)</span>
-              <span>Evening Rush (6 PM - 7 PM)</span>
+              <span>Opening (9 AM)</span>
+              <span>Midday (12 PM–3 PM)</span>
+              <span>Evening (6 PM–8 PM)</span>
             </div>
           </div>
 
@@ -398,7 +391,7 @@ export default function BarberAnalytics() {
             </div>
 
             <div className="pt-4 border-t border-slate-100 mt-4 text-xs text-slate-500">
-              💡 <em>{serviceBreakdown[0]?.name || 'Fade'} represents highest floor demand.</em>
+              💡 <em>{totalDemands ? `${serviceBreakdown[0]?.name || 'Service'} leads demand in this period.` : 'No service activity in this period.'}</em>
             </div>
           </div>
         </div>
@@ -434,13 +427,17 @@ export default function BarberAnalytics() {
                   const currentlyServing = queue.find(
                     q => q.barber_id === barber.id && q.status === 'serving'
                   )
-                  const barberCompleted = queue.filter(
+                  const barberCompletions = filteredQueue.filter(
                     q => q.barber_id === barber.id && q.status === 'completed'
-                  ).length
-                  const barberReviews = reviews.filter(r => r.barber_id === barber.id)
+                  )
+                  const barberCompleted = barberCompletions.length
+                  const barberAvgDuration = barberCompleted
+                    ? Math.round(barberCompletions.reduce((sum, q) => sum + q.service_duration, 0) / barberCompleted)
+                    : null
+                  const barberReviews = filteredReviews.filter(r => r.barber_id === barber.id)
                   const barberRating = barberReviews.length > 0
                     ? (barberReviews.reduce((sum, r) => sum + r.rating, 0) / barberReviews.length).toFixed(1)
-                    : '4.9'
+                    : '—'
 
                   return (
                     <tr key={barber.id} className="hover:bg-blue-50/40 transition-colors">
@@ -474,16 +471,16 @@ export default function BarberAnalytics() {
                       </td>
 
                       <td data-label="Served today" data-label-gu="આજે સેવા આપી" className="py-3 font-bold text-slate-900">
-                        {barber.served_today + barberCompleted} guests
+                        {barberCompleted} guests
                       </td>
 
                       <td data-label="Average time" data-label-gu="સરેરાશ સમય" className="py-3 font-mono font-bold text-blue-700">
-                        {barber.avg_duration} mins
+                        {barberAvgDuration === null ? '—' : `${barberAvgDuration} mins`}
                       </td>
 
                       <td data-label="Punctuality" data-label-gu="સમયપાલન" className="py-3">
-                        <span className="px-2 py-0.5 rounded-full font-bold text-[10px] bg-emerald-100 text-emerald-800">
-                          98% on schedule
+                        <span className="px-2 py-0.5 rounded-full font-bold text-[10px] bg-slate-100 text-slate-600">
+                          Not tracked
                         </span>
                       </td>
 
@@ -512,13 +509,6 @@ export default function BarberAnalytics() {
                 <p className="text-xs text-slate-500">Live reviews received from post-service feedback</p>
               </div>
             </div>
-            <Link
-              to="/feedback/LX-01"
-              className="text-xs text-blue-700 font-bold hover:underline flex items-center gap-1"
-            >
-              <span>Submit Review</span>
-              <Sparkles size={13} />
-            </Link>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4">

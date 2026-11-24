@@ -1,5 +1,4 @@
 import React, { useEffect, useState } from 'react'
-import { queueBroadcast } from '../../lib/supabase'
 import { getServiceDisplayName } from '../../lib/utils'
 import { Bell, Sparkles, CheckCircle2, UserCheck, Scissors } from 'lucide-react'
 
@@ -30,28 +29,21 @@ export const LiveToastContainer: React.FC = () => {
   }
 
   useEffect(() => {
-    const channel = queueBroadcast
-    if (!channel) return
-
-    const handleBroadcast = (event: MessageEvent) => {
-      const { action, payload } = event.data || {}
-      if (action === 'ADD_ENTRY') {
-        const last = payload?.queue?.[payload?.queue?.length - 1]
-        if (last) {
-          addToast({
-            title: `New Guest Checked In · ${last.token}`,
-            description: `${last.customer_name} joined line for ${getServiceDisplayName(last.service)} (${last.barber_name})`,
-            descriptionContent: <><span data-locale-skip>{last.customer_name}</span> joined line for <span>{getServiceDisplayName(last.service)}</span> (<span data-locale-skip>{last.barber_name}</span>)</>,
-            icon: 'join',
-          })
-        }
-      } else if (action === 'CALL_NEXT') {
+    const handleQueueEvent = (event: Event) => {
+      const { type, data = {} } = (event as CustomEvent<{ type: string; data: Record<string, string> }>).detail || {}
+      if (type === 'QUEUE_UPDATE') {
+        addToast({
+          title: `New Guest Checked In · ${data.token || ''}`,
+          description: `Joined line for ${getServiceDisplayName(data.service || '')} (${data.barber_name || 'stylist'})`,
+          icon: 'join',
+        })
+      } else if (type === 'CALL_NEXT') {
         addToast({
           title: `Station Calling Patron`,
           description: `Summoning next patron to station`,
           icon: 'call',
         })
-      } else if (action === 'MARK_DONE') {
+      } else if (type === 'MARK_DONE') {
         addToast({
           title: `Service Completed ✨`,
           description: `Station ready for next patron`,
@@ -59,11 +51,8 @@ export const LiveToastContainer: React.FC = () => {
         })
       }
     }
-
-    channel.addEventListener('message', handleBroadcast)
-    return () => {
-      channel.removeEventListener('message', handleBroadcast)
-    }
+    window.addEventListener('latecuts:queue-event', handleQueueEvent)
+    return () => window.removeEventListener('latecuts:queue-event', handleQueueEvent)
   }, [])
 
   if (toasts.length === 0) return null

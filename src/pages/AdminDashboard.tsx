@@ -2,19 +2,19 @@ import { useState, useEffect } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useQueueStore } from '../stores/queueStore'
 import { useAuthStore } from '../stores/authStore'
-import { getServiceDisplayName, SERVICES } from '../lib/utils'
+import { getServiceDisplayName } from '../lib/utils'
 import { LoungeQRCode } from '../components/ui/QRCode'
 import { Scissors, Users, TrendingUp, Plus, UserX, ArrowLeft, BarChart3, QrCode, Sparkles, Moon, Database, Search, Filter, Play, Pause, LogOut } from 'lucide-react'
 
 export default function AdminDashboard() {
-  const { queue, barbers, addToQueue, updateBarberStatus, updateStatus, resetToSampleData, isLiveDbConnected } = useQueueStore()
+  const { queue, barbers, services, addToQueue, updateBarberStatus, updateStatus, resetToSampleData } = useQueueStore()
   const { logout, user } = useAuthStore()
   const navigate = useNavigate()
   const [showWalkinModal, setShowWalkinModal] = useState(false)
   const [showQRModal, setShowQRModal] = useState(false)
   const [walkinName, setWalkinName] = useState('')
-  const [walkinService, setWalkinService] = useState(SERVICES[0].id)
-  const [walkinBarber, setWalkinBarber] = useState(barbers[0].id)
+  const [walkinService, setWalkinService] = useState('')
+  const [walkinBarber, setWalkinBarber] = useState('')
   const [activeTab, setActiveTab] = useState<'queue' | 'history'>('queue')
 
   // Dynamic search and filter
@@ -24,28 +24,38 @@ export default function AdminDashboard() {
   // Dynamic Automated Patron Simulator
   const [autoSimulate, setAutoSimulate] = useState(false)
 
+  const salonDateKey = (value: string | Date) => new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Kolkata', year: 'numeric', month: '2-digit', day: '2-digit',
+  }).format(new Date(value))
+  const todayKey = salonDateKey(new Date())
+  const isToday = (value?: string | Date) => value ? salonDateKey(value) === todayKey : false
+  const todayQueue = queue.filter(entry => isToday(entry.timestamp_joined))
   const totalWaiting = queue.filter(q => q.status === 'waiting').length
   const totalServing = queue.filter(q => q.status === 'serving').length
-  const totalCompleted = queue.filter(q => q.status === 'completed').length
-  const totalNoShow = queue.filter(q => q.status === 'absent').length
+  const totalCompleted = queue.filter(q => q.status === 'completed' && isToday(q.timestamp_completed)).length
+  const totalNoShow = todayQueue.filter(q => q.status === 'absent').length
+  const noShowRate = todayQueue.length ? (totalNoShow / todayQueue.length * 100).toFixed(1) : '0.0'
 
   const handleSimulatePatron = () => {
     const patronNames = ['Oliver', 'Emma', 'Liam', 'Lucas', 'Priya', 'Kabir', 'Zoya', 'Vikram', 'Aria', 'Noah']
     const randomName = patronNames[Math.floor(Math.random() * patronNames.length)]
-    const randomService = SERVICES[Math.floor(Math.random() * SERVICES.length)]
+    if (!services.length || !barbers.length) return
+    const randomService = services[Math.floor(Math.random() * services.length)]
     const activeBarbers = barbers.filter(b => b.status === 'available')
     const targetBarber = activeBarbers.length > 0
       ? activeBarbers[Math.floor(Math.random() * activeBarbers.length)]
       : barbers[0]
 
-    addToQueue({
+    void addToQueue({
       customer_name: randomName,
       service: randomService.name_en,
       service_duration: randomService.duration,
       barber_id: targetBarber.id,
       barber_name: targetBarber.name,
-      language: 'en'
-    })
+      language: 'en',
+      service_ids: [randomService.id],
+      isWalkIn: true,
+    }).catch(error => window.alert(error instanceof Error ? error.message : 'The simulation could not be added.'))
   }
 
   // Auto-simulator interval effect
@@ -55,26 +65,40 @@ export default function AdminDashboard() {
       handleSimulatePatron()
     }, 20000) // every 20 seconds
     return () => clearInterval(interval)
-  }, [autoSimulate, barbers])
+  }, [autoSimulate, barbers, services])
+
+  useEffect(() => {
+    if (!services.some(service => service.id === walkinService)) setWalkinService(services[0]?.id || '')
+  }, [services, walkinService])
+
+  useEffect(() => {
+    if (!barbers.some(barber => barber.id === walkinBarber)) setWalkinBarber(barbers[0]?.id || '')
+  }, [barbers, walkinBarber])
 
   const handleCreateWalkin = (e: React.FormEvent) => {
     e.preventDefault()
-    if (!walkinName.trim()) return
+    if (!walkinName.trim() || !services.length) return
 
-    const s = SERVICES.find(svc => svc.id === walkinService)!
-    const b = barbers.find(barb => barb.id === walkinBarber)!
+    const s = services.find(svc => svc.id === walkinService)
+    const b = barbers.find(barb => barb.id === walkinBarber)
+    if (!s || !b) return
 
-    addToQueue({
+    void addToQueue({
       customer_name: walkinName.trim(),
       service: s.name_en,
       service_duration: s.duration,
       barber_id: b.id,
       barber_name: b.name,
-      language: 'en'
+      language: 'en',
+      service_ids: [s.id],
+      isWalkIn: true,
+    }).then(() => {
+      setWalkinName('')
+      setShowWalkinModal(false)
+    }).catch(error => {
+      window.alert(error instanceof Error ? error.message : 'The walk-in could not be added.')
     })
 
-    setWalkinName('')
-    setShowWalkinModal(false)
   }
 
   // Filtered queue items
@@ -267,8 +291,8 @@ export default function AdminDashboard() {
               <span className="text-xs uppercase font-bold text-slate-500">Served Today</span>
               <TrendingUp size={18} className="text-sky-600" />
             </div>
-            <div className="font-display text-4xl font-black text-blue-950">{totalCompleted + 22}</div>
-            <span className="text-xs text-slate-400 font-semibold mt-1 block">Daily standard: 35 patrons</span>
+            <div className="font-display text-4xl font-black text-blue-950">{totalCompleted}</div>
+            <span className="text-xs text-slate-400 font-semibold mt-1 block">Recorded completions today</span>
           </div>
 
           <div className="dynamic-card p-5 border-l-4 border-l-rose-400">
@@ -277,7 +301,7 @@ export default function AdminDashboard() {
               <UserX size={18} className="text-rose-500" />
             </div>
             <div className="font-display text-4xl font-black text-rose-700">{totalNoShow}</div>
-            <span className="text-xs text-rose-500 font-semibold mt-1 block">{(totalNoShow * 2.8).toFixed(1)}% of total traffic</span>
+            <span className="text-xs text-rose-500 font-semibold mt-1 block">{noShowRate}% of today's entries</span>
           </div>
         </div>
 
@@ -289,7 +313,9 @@ export default function AdminDashboard() {
               <p className="lc-section-note">Station status and each barber’s current workload.</p>
             </div>
             <button
-              onClick={resetToSampleData}
+              onClick={() => {
+                void resetToSampleData().catch(error => window.alert(error instanceof Error ? error.message : 'Sample data reset is unavailable.'))
+              }}
               className="text-xs text-slate-400 hover:text-slate-600 underline font-medium"
             >
               Reset Sample Data
@@ -319,7 +345,10 @@ export default function AdminDashboard() {
 
                     <select
                       value={barber.status}
-                      onChange={(e) => updateBarberStatus(barber.id, e.target.value as any)}
+                      onChange={(e) => {
+                        void updateBarberStatus(barber.id, e.target.value as any)
+                          .catch(error => window.alert(error instanceof Error ? error.message : 'Stylist status could not be saved.'))
+                      }}
                       className="text-xs rounded-xl px-2.5 py-1 font-bold outline-none border cursor-pointer bg-white text-blue-900 border-blue-200 shadow-sm"
                     >
                       <option value="available">Active</option>
@@ -440,7 +469,10 @@ export default function AdminDashboard() {
                       <td data-label="Actions" data-label-gu="કાર્યવાહી" className="py-3 text-right">
                         {entry.status === 'waiting' && (
                           <button
-                            onClick={() => updateStatus(entry.id, 'absent')}
+                            onClick={() => {
+                              void updateStatus(entry.id, 'absent')
+                                .catch(error => window.alert(error instanceof Error ? error.message : 'Queue entry could not be removed.'))
+                            }}
                             className="text-xs px-2.5 py-1 rounded-lg font-bold text-rose-600 hover:bg-rose-50 border border-transparent hover:border-rose-200 transition-colors"
                           >
                             Remove
@@ -448,7 +480,10 @@ export default function AdminDashboard() {
                         )}
                         {entry.status === 'serving' && (
                           <button
-                            onClick={() => updateStatus(entry.id, 'completed')}
+                            onClick={() => {
+                              void updateStatus(entry.id, 'completed')
+                                .catch(error => window.alert(error instanceof Error ? error.message : 'Service could not be completed.'))
+                            }}
                             className="text-xs px-2.5 py-1 rounded-lg font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 transition-colors"
                           >
                             Mark Done
@@ -498,7 +533,7 @@ export default function AdminDashboard() {
                   onChange={e => setWalkinService(e.target.value)}
                   className="input-clean"
                 >
-                  {SERVICES.map(s => (
+              {services.map(s => (
                     <option key={s.id} value={s.id}>
                       {s.icon} {s.name_en} ({s.duration}m - ₹{s.price})
                     </option>

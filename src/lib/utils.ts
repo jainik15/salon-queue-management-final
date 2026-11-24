@@ -1,13 +1,4 @@
-import type { Barber, QueueEntry, Service, ReviewEntry } from '../types'
-
-export const SERVICES: Service[] = [
-  { id: 'classic-cut', name_en: 'Classic Cut', name_gu: 'ક્લાસિક કટ', icon: '✂️', duration: 25, price: 199 },
-  { id: 'beard-sculpt', name_en: 'Beard Sculpt', name_gu: 'બીયર્ડ સ્કલ્પ્ટ', icon: '🧔', duration: 20, price: 149 },
-  { id: 'royal-fade', name_en: 'Fade', name_gu: 'ફેડ', icon: '💈', duration: 35, price: 299 },
-  { id: 'kids-cut', name_en: 'Kids Cut', name_gu: 'કિડ્સ કટ', icon: '🧒', duration: 20, price: 149 },
-  { id: 'head-spa', name_en: 'Hair Spa', name_gu: 'હેર સ્પા', icon: '🌿', duration: 45, price: 149 },
-  { id: 'bridal', name_en: 'D-Tan', name_gu: 'ડી-ટેન', icon: '✨', duration: 90, price: 300 },
-]
+import type { Barber, QueueEntry, ReviewEntry } from '../types'
 
 const legacyServiceNames: Record<string, string> = {
   'Royal Fade': 'Fade',
@@ -21,6 +12,7 @@ const legacyServiceNames: Record<string, string> = {
   'Bridal & Head Spa': 'D-Tan & Hair Spa',
   'Royal Fade & Classic': 'Fade & Classic',
 }
+const currentServiceNames = new Set(['Classic Cut', 'Beard Sculpt', 'Fade', 'Kids Cut', 'Hair Spa', 'D-Tan'])
 
 /** Normalize service labels from older queue/review records for display only. */
 export const getServiceDisplayName = (service: string): string =>
@@ -29,11 +21,8 @@ export const getServiceDisplayName = (service: string): string =>
     const label = part.trim()
     const legacyLabel = Object.keys(legacyServiceNames).find(name => name.toLowerCase() === label.toLowerCase())
     const canonicalLabel = legacyLabel ? legacyServiceNames[legacyLabel] : label
-    const catalogService = SERVICES.find(item =>
-      item.name_en.toLowerCase() === canonicalLabel.toLowerCase() ||
-      item.name_gu === canonicalLabel
-    )
-    return catalogService?.name_en || canonicalLabel
+    const currentLabel = [...currentServiceNames].find(name => name.toLowerCase() === canonicalLabel.toLowerCase())
+    return currentLabel || canonicalLabel
   }).join('')
 
 export const INITIAL_BARBERS: Barber[] = [

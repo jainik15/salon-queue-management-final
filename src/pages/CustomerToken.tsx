@@ -1,27 +1,46 @@
 import { useEffect, useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { useQueueStore } from '../stores/queueStore'
+import { apiFetch } from '../lib/api'
 import { formatWait, getOrdinal, getServiceDisplayName } from '../lib/utils'
 import type { QueueEntry } from '../types'
 import { Scissors, Bell, ArrowLeft, Clock, CheckCircle2, UserCheck, Sparkles, Navigation } from 'lucide-react'
 
 export default function CustomerToken() {
   const { id } = useParams()
-  const { queue, barbers, updateStatus } = useQueueStore()
+  const { queue, barbers, cancelQueueEntry } = useQueueStore()
   const [entry, setEntry] = useState<QueueEntry | null>(null)
+  const [isLookingUp, setIsLookingUp] = useState(true)
   const [position, setPosition] = useState(0)
   const [showCancel, setShowCancel] = useState(false)
   const [elapsedSeconds, setElapsedSeconds] = useState(0)
 
   useEffect(() => {
-    const found = queue.find(e => e.id === id || e.token.toLowerCase() === (id || '').toLowerCase()) ||
-                  queue[queue.length - 1]
-    if (found) {
+    let cancelled = false
+    if (!id) { setIsLookingUp(false); return }
+
+    const matchingEntry = queue.find(item => item.public_access_token === id)
+    const loadEntry = matchingEntry
+      ? Promise.resolve(matchingEntry)
+      : apiFetch(`/api/queue/entry/${encodeURIComponent(id)}`)
+        .then(async response => {
+          if (!response.ok) throw new Error('Queue pass not found')
+          const data = await response.json()
+          return data.entry as QueueEntry
+        })
+
+    loadEntry.then(found => {
+      if (cancelled) return
       setEntry(found)
-      const barberQueue = queue.filter(e => e.barber_id === found.barber_id && e.status === 'waiting')
-      const pos = barberQueue.findIndex(e => e.id === found.id) + 1
-      setPosition(found.status === 'serving' ? 0 : pos)
-    }
+      const barberQueue = queue.filter(item => item.barber_id === found.barber_id && item.status === 'waiting')
+      const positionInQueue = barberQueue.findIndex(item => item.id === found.id) + 1
+      setPosition(found.status === 'serving' ? 0 : positionInQueue > 0 ? positionInQueue : found.position)
+    }).catch(() => {
+      if (!cancelled) setEntry(null)
+    }).finally(() => {
+      if (!cancelled) setIsLookingUp(false)
+    })
+    return () => { cancelled = true }
   }, [queue, id])
 
   useEffect(() => {
@@ -35,12 +54,24 @@ export default function CustomerToken() {
     return () => clearInterval(timer)
   }, [entry])
 
-  if (!entry) {
+  if (!entry && isLookingUp) {
     return (
       <div className="lc-screen lc-workspace lc-token min-h-screen flex items-center justify-center bg-blue-50/50">
         <div className="text-center space-y-3">
           <div className="w-12 h-12 border-3 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto" />
           <p className="text-sm font-semibold text-blue-900">Locating your token…</p>
+        </div>
+      </div>
+    )
+  }
+
+  if (!entry) {
+    return (
+      <div className="lc-screen lc-workspace lc-token min-h-screen flex items-center justify-center">
+        <div className="text-center space-y-3 px-6">
+          <h1 className="font-display text-2xl font-bold">Queue pass not found</h1>
+          <p className="text-sm">Check the link you received and try again.</p>
+          <Link to="/join" className="btn-primary inline-flex px-5 py-2.5">Return to check-in</Link>
         </div>
       </div>
     )
@@ -216,6 +247,15 @@ export default function CustomerToken() {
               </div>
             )}
 
+            {entry.status === 'completed' && entry.public_access_token && (
+              <Link
+                to={`/feedback/${entry.public_access_token}`}
+                className="w-full mb-3 py-2.5 rounded-xl text-xs font-semibold transition-all border border-amber-300 text-amber-800 hover:bg-amber-50 block"
+              >
+                Share your visit feedback
+              </Link>
+            )}
+
             {/* Leave Queue Button */}
             {!isDone && (
               <button
@@ -294,9 +334,14 @@ export default function CustomerToken() {
                 Keep My Spot
               </button>
               <button
-                onClick={() => {
-                  updateStatus(entry.id, 'absent')
-                  setShowCancel(false)
+                onClick={async () => {
+                  if (!entry.public_access_token) return
+                  try {
+                    await cancelQueueEntry(entry.public_access_token)
+                    setShowCancel(false)
+                  } catch (error) {
+                    window.alert(error instanceof Error ? error.message : 'The queue pass could not be cancelled.')
+                  }
                 }}
                 className="py-2.5 rounded-xl text-xs font-bold bg-rose-50 text-rose-700 border border-rose-200 hover:bg-rose-100 transition-colors"
               >

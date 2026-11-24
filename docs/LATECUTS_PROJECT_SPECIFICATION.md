@@ -1,5 +1,7 @@
 # LateCuts Project Specification
 
+> **Status update (2026-11-25):** Sections describing the pre-migration architecture are the inspected Phase 1 baseline. The current backend implementation and deployment readiness are documented in [`LATECUTS_PRODUCTION_BACKEND.md`](./LATECUTS_PRODUCTION_BACKEND.md). The Supabase migration is prepared but not applied; production data has not been changed.
+
 ## 1. Project overview
 
 LateCuts is the planned conversion of the existing salon queue application. The product manages same-day guest check-in, per-stylist queues, live tokens, chair workflows, lounge display, reception operations, analytics, and feedback. This specification separates the inspected baseline from confirmed decisions and future work; it does not claim planned capabilities are implemented.

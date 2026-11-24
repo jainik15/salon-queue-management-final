@@ -2,9 +2,10 @@
 
 > Historical project notes are retained for context. Current LateCuts decisions and preservation requirements are documented under `docs/`.
 
-**Live demo:** https://salon-queue-management-six.vercel.app/  
-**Hosted on:** Vercel (frontend) + Render / Node.js (backend) + Supabase (database)  
+**Deployment status:** Production deployment has not been performed by this repository change. See [`docs/LATECUTS_PRODUCTION_BACKEND.md`](./docs/LATECUTS_PRODUCTION_BACKEND.md) for prepared deployment steps.
 **Staff username:** `staff` — staff authentication requires a private backend `STAFF_PIN`.
+
+Links below point to the inherited preview deployment and may not represent the current local LateCuts code or backend configuration.
 
 ---
 
@@ -58,17 +59,11 @@ Built with a bespoke **Dynamic Blue & White Design System**, zero-dependency Web
 
 ---
 
-## ⚡ Multi-Tier Real-Time & Database Architecture
+## ⚡ LateCuts Backend Architecture
 
-1. **Node.js HTTP Server (`server/server.js`) on Port 3001:**
-   - Persistent file-based JSON storage saved at `server/data/database.json`.
-   - **Server-Sent Events (SSE)** endpoint at `/api/events` broadcasting state changes in real time across all displays and stations.
-   - RESTful endpoints for token booking, stylist calls, completion, absence marking, stylist status, and database resets.
-2. **Supabase PostgreSQL Cloud Integration (Optional):**
-   - Direct integration via `@supabase/supabase-js`.
-   - Schema, row-level security (RLS), and sample seeds included in [`supabase-schema.sql`](./supabase-schema.sql).
-3. **Cross-Tab Web BroadcastChannel Engine:**
-   - Zero-configuration real-time sync across multiple browser tabs and windows even if running completely offline.
+1. **Node.js API (`server/server.js`):** Persistent REST API and SSE, intended for a Render web service. It uses Supabase as the authoritative store and no longer reads or writes the legacy JSON file.
+2. **Supabase PostgreSQL:** The server-only service-role client handles data access; the browser does not connect directly. Apply the reviewed migration in `supabase/migrations/` only after a verified backup and explicit approval. The root `supabase-schema.sql` is historical, inert and must not be applied.
+3. **Frontend state:** Zustand hydrates from the API. Cross-tab BroadcastChannel messages only request a refresh and contain no customer records.
 
 ---
 
@@ -96,13 +91,15 @@ Built with a bespoke **Dynamic Blue & White Design System**, zero-dependency Web
 Both the Node.js API server (`localhost:3001`) and the Vite development server (`localhost:5173`) start concurrently with one single command:
 
 ```bash
-npm install
+npm ci
 cp .env.example .env
-# Set a unique private numeric STAFF_PIN in .env before starting the backend.
+# Configure a Supabase project, backend-only key, STAFF_PIN and STAFF_SESSION_SECRET.
+# Apply the reviewed migration only after backup and explicit approval.
 npm run dev
 ```
 
 Open [http://localhost:5173](http://localhost:5173) in your browser.
+Without Supabase and secure staff credentials configured, API data and sign-in fail closed; the legacy JSON file is not used as a fallback.
 
 ### 2. Standalone Commands
 - **Frontend only:** `npm run dev:client` (starts Vite on `http://localhost:5173`)
@@ -113,23 +110,24 @@ Open [http://localhost:5173](http://localhost:5173) in your browser.
 
 ## Environment variables
 
-- `STAFF_PIN` is required for staff sign-in and is read only by the Node backend. Use a unique private 6-digit PIN; never prefix it with `VITE_`.
+- `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `STAFF_PIN`, `STAFF_SESSION_SECRET`, and `CORS_ALLOWED_ORIGINS` are backend-only variables. Configure them in Render; do not use a `VITE_` prefix.
+- `STAFF_PIN` is a private six-digit PIN. `STAFF_SESSION_SECRET` must be at least 32 bytes.
+- `VITE_API_BASE_URL` is public frontend configuration: local development may use `http://localhost:3001`; Vercel must use the Render HTTPS origin.
 - For local development, copy `.env.example` to `.env` and replace placeholders. `.env` and `.env.local` are ignored by Git.
-- `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` are optional public client settings when Supabase is configured. Never use a service-role key in frontend configuration.
-- `PORT` is optional; the backend defaults to port 3001.
+- `PORT` is optional locally; Render supplies it. Keep `ENABLE_SAMPLE_DATA_RESET` disabled in production (production API blocks it regardless).
 
 ## 📡 Backend REST API Endpoints
 
-- `GET /api/health` — Server health check and active queue stats
-- `GET /api/events` — Server-Sent Events (SSE) live data stream
-- `POST /api/auth/login` — Authenticate concierge session
-- `GET /api/queue` — Fetch full current queue and stylist rosters
-- `POST /api/queue/join` — Check in a new patron
-- `POST /api/queue/call-next` — Stylist station calls next waiting customer
-- `POST /api/queue/mark-done` — Complete current haircut / spa session
-- `POST /api/queue/mark-absent` — Mark customer as absent / canceled
-- `POST /api/barbers/status` — Set stylist status (`available`, `busy`, `break`, `off`)
-- `POST /api/database/reset` — Restore database to initial default sample state
+- `GET /api/health` — API and Supabase connectivity; no customer counts.
+- `GET /api/events` — Redacted Server-Sent Events stream.
+- `POST /api/auth/login` — Verify backend staff credentials and issue a signed session.
+- `GET /api/queue` — Anonymous active-queue projection, or full staff data with a valid bearer session.
+- `GET /api/services` — Active database service catalog.
+- `GET /api/queue/entry/:accessToken` — One customer's private queue pass.
+- `POST /api/queue/join`, `POST /api/queue/cancel` — Public check-in and access-token-limited cancellation.
+- `GET /api/feedback/:accessToken`, `POST /api/feedback` — Completed-pass review flow.
+- `POST /api/queue/walk-in`, `/call-next`, `/mark-done`, `/mark-absent`, `/api/barbers/status` — Staff-authenticated operations.
+- `POST /api/database/reset` — Staff-authenticated non-production sample reset; disabled in production.
 
 ---
 
@@ -141,7 +139,8 @@ salon-queue-management/
 ├── README.md                   # Project overview, credentials, routes, API docs
 ├── prompts.md                  # Complete log of prompts used during development
 ├── reflection.md               # Half-page reflection on vibe coding process
-├── supabase-schema.sql         # PostgreSQL DDL schema & seed data
+├── supabase-schema.sql         # Inert historical schema; do not apply
+├── supabase/migrations/        # Reviewed LateCuts PostgreSQL migration
 ├── vercel.json                 # Vercel deployment configuration
 ├── package.json                # Project dependencies and concurrent scripts
 ├── vite.config.ts              # Vite config with API proxy
@@ -151,13 +150,13 @@ salon-queue-management/
 │   ├── 02-screens.md           # Full 9-screen specifications
 │   └── 03-flows-rules.md       # Queue logic, business invariants, test checklist
 ├── server/
-│   ├── server.js               # Node.js HTTP + SSE backend server
-│   └── data/database.json      # Persistent local database store
+│   ├── server.js               # Node.js HTTP + SSE API for Supabase
+│   └── data/database.json      # Ignored legacy local data; preserved, not read by API
 └── src/
     ├── App.tsx                 # Master routing, ambient orbs, protected routes
     ├── index.css               # Design system variables and living animations
     ├── components/             # Reusable UI, QR Code, and Live Toasts
     ├── pages/                  # All 9 screens
     ├── stores/                 # Zustand queueStore & authStore
-    └── lib/                    # Audio synthesizer, confetti engine, Supabase client
+    └── lib/                    # API client, audio synthesizer, confetti engine
 ```

@@ -1,7 +1,7 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import { useQueueStore } from '../stores/queueStore'
-import { getServiceDisplayName, SERVICES } from '../lib/utils'
+import { getServiceDisplayName } from '../lib/utils'
 import { Scissors, Clock, ChevronRight, Sparkles, Check, Zap } from 'lucide-react'
 import { useLocale } from '../lib/locale'
 
@@ -50,13 +50,14 @@ const T = {
 
 export default function JoinQueue() {
   const navigate = useNavigate()
-  const { barbers, addToQueue } = useQueueStore()
+  const { barbers, services, addToQueue } = useQueueStore()
   const { lang, setLang } = useLocale()
   const [selectedServiceIds, setSelectedServiceIds] = useState<string[]>(['classic-cut'])
   const [selectedBarber, setSelectedBarber] = useState<string>('any')
   const [name, setName] = useState('')
   const [error, setError] = useState('')
   const [joining, setJoining] = useState(false)
+  const joinRequestId = useRef('')
   const t = T[lang]
 
   // Toggle multi-service
@@ -71,7 +72,7 @@ export default function JoinQueue() {
     })
   }
 
-  const selectedServices = SERVICES.filter(s => selectedServiceIds.includes(s.id))
+  const selectedServices = services.filter(s => selectedServiceIds.includes(s.id))
   const totalPrice = selectedServices.reduce((sum, s) => sum + s.price, 0)
   const totalDuration = selectedServices.reduce((sum, s) => sum + s.duration, 0)
   const serviceSummaryName = selectedServices.map(s => (lang === 'en' ? s.name_en : s.name_gu)).join(' + ')
@@ -85,10 +86,11 @@ export default function JoinQueue() {
   })()
 
   const handleJoin = async () => {
-    if (selectedServiceIds.length === 0) return setError(t.selectService)
+    if (selectedServices.length === 0) return setError(t.selectService)
     if (!name.trim()) return setError(t.enterName)
     setError('')
     setJoining(true)
+    if (!joinRequestId.current) joinRequestId.current = crypto.randomUUID()
 
     const barberId = selectedBarber === 'any'
       ? barbers.filter(b => b.status === 'available').sort((a, b) => a.queue_count - b.queue_count)[0]?.id || recommendedBarber
@@ -96,16 +98,24 @@ export default function JoinQueue() {
 
     const barber = barbers.find(b => b.id === barberId)!
 
-    const entry = await addToQueue({
-      customer_name: name.trim(),
-      service: serviceSummaryName,
-      service_duration: totalDuration,
-      barber_id: barberId,
-      barber_name: barber.name,
-      language: lang,
-    })
-
-    setTimeout(() => navigate(`/token/${entry.id}`), 400)
+    try {
+      const entry = await addToQueue({
+        customer_name: name.trim(),
+        service: serviceSummaryName,
+        service_duration: totalDuration,
+        barber_id: barberId,
+        barber_name: barber?.name || '',
+        language: lang,
+        service_ids: selectedServices.map(service => service.id),
+        join_request_id: joinRequestId.current,
+      })
+      if (!entry.public_access_token) throw new Error('The queue pass could not be created. Please try again.')
+      joinRequestId.current = ''
+      setTimeout(() => navigate(`/token/${entry.public_access_token}`), 400)
+    } catch (joinError) {
+      setError(joinError instanceof Error ? joinError.message : 'The queue could not be joined. Please try again.')
+      setJoining(false)
+    }
   }
 
   return (
@@ -170,7 +180,7 @@ export default function JoinQueue() {
           <p className="text-xs text-slate-500 mb-4">{t.serviceHint}</p>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2.5 sm:gap-3">
-            {SERVICES.map(svc => {
+            {services.map(svc => {
               const active = selectedServiceIds.includes(svc.id)
               return (
                 <button
@@ -378,9 +388,6 @@ export default function JoinQueue() {
           </Link>
           <Link to="/analytics" className="hover:text-blue-700 transition-colors">
             📊 Analytics
-          </Link>
-          <Link to="/feedback/LX-01" className="hover:text-blue-700 transition-colors">
-            ⭐ Review
           </Link>
         </div>
 

@@ -7,19 +7,20 @@
 LUXE CUTS is a production-grade, real-time salon queue orchestration platform built with React + Vite + TypeScript + Tailwind CSS + Node.js.
 
 ### Core Working Rules
-1. **Design System (Anti-Generic / Bespoke Look):**
-   - Theme must be **Dynamic Blue & White**: Pure White (`#FFFFFF`), Ice Blue (`#F0F7FF`), Royal Sapphire (`#1D4ED8`, `#2563EB`), Sky Blue (`#0284C7`), Deep Marine Navy (`#0A192F`).
-   - Use ambient living orbs (`.ambient-bg`) and elevated interactive cards (`.dynamic-card`).
-   - Do NOT use generic template aesthetics.
+1. **Design System:**
+   - Preserve LateCuts' premium dark luxury direction and existing screen behavior.
+   - Avoid broad, unrelated redesigns during backend and deployment work.
 2. **State Management & Storage:**
-   - All shared queue state lives in Zustand `queueStore.ts`.
-   - Real-time updates utilize a 3-layer architecture:
-     1. Node.js backend server (`server/server.js`) on port 3001 with persistent JSON DB and Server-Sent Events (`/api/events`).
-     2. Supabase PostgreSQL cloud sync via `@supabase/supabase-js`.
-     3. Cross-tab `BroadcastChannel` fallback.
+   - Zustand `src/stores/queueStore.ts` is the frontend state cache, not the source of truth.
+   - Persistent queue and catalog reads/writes go through `server/server.js` to Supabase PostgreSQL.
+   - `/api/events` sends redacted SSE notices. BroadcastChannel messages are invalidation notices only; never put customer records in them.
+   - `server/data/database.json` is legacy local data. Keep it untouched and ignored; do not restore JSON fallback behavior.
 3. **Audio & Sensory Feedback:**
    - Web Audio API pure synthesizer (528 Hz / 1056 Hz harmonic tone) for chime alerts.
    - Canvas physics engine for feedback confetti.
 4. **Security & Routes:**
-   - Route guard `ProtectedRoute.tsx` protects `/admin` and `/analytics`.
-   - Staff login is validated by the Node backend with the server-only `STAFF_PIN` environment variable. Never add credentials or auth fallbacks to frontend code.
+   - Client route guards are usability only; protected API actions must verify the signed staff session in the Node backend.
+   - Staff username is `staff`; credentials come only from backend `STAFF_PIN` and `STAFF_SESSION_SECRET` environment variables.
+   - `SUPABASE_SERVICE_ROLE_KEY` stays on the Node host. Never expose it through Vite, `VITE_*`, source code, logs, or docs.
+   - Supabase RLS must not grant anonymous/authenticated access to customer queue data. Public API projections must omit other customers' names and contact details.
+   - Configure explicit `CORS_ALLOWED_ORIGINS`; never use wildcard CORS.

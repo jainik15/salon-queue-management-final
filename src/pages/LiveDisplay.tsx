@@ -47,6 +47,9 @@ export default function LiveDisplay() {
   }
 
   const waitingEntries = queue.filter(e => e.status === 'waiting')
+  const avgServiceDuration = barbers.length
+    ? Math.round(barbers.reduce((total, barber) => total + barber.avg_duration, 0) / barbers.length)
+    : null
 
   return (
     <div
@@ -240,7 +243,7 @@ export default function LiveDisplay() {
                         </div>
 
                         <div className="text-xs font-bold text-sky-300">
-                          {idx === 0 ? 'NEXT' : `+${idx * 25}m`}
+                          {idx === 0 ? 'NEXT' : `~${entry.estimated_wait}m`}
                         </div>
                       </div>
                     ))
@@ -271,7 +274,7 @@ export default function LiveDisplay() {
         <div className="flex items-center gap-6 pl-6 text-xs font-semibold text-blue-200">
           <div className="flex items-center gap-1.5">
             <Clock size={14} className="text-sky-300" />
-            <span>Avg Service: <strong className="text-white">25 mins</strong></span>
+            <span>Avg Service: <strong className="text-white">{avgServiceDuration === null ? '—' : `${avgServiceDuration} mins`}</strong></span>
           </div>
           <div>
             <span>Waiting Floor: <strong className="text-white">{waitingEntries.length} Guests</strong></span>

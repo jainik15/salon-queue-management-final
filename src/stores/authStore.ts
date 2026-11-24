@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import { apiFetch } from '../lib/api'
 
 export interface UserSession {
   role: 'admin' | 'barber'
@@ -27,9 +28,26 @@ function getSavedSession(): UserSession | null {
   try {
     localStorage.removeItem(LEGACY_STORAGE_KEY_AUTH)
     const raw = localStorage.getItem(STORAGE_KEY_AUTH)
-    return raw ? JSON.parse(raw) : null
+    const session = raw ? JSON.parse(raw) as UserSession : null
+    if (!session?.token || !sessionExpiresInFuture(session.token)) {
+      localStorage.removeItem(STORAGE_KEY_AUTH)
+      return null
+    }
+    return session
   } catch {
     return null
+  }
+}
+
+function sessionExpiresInFuture(token: string): boolean {
+  try {
+    const payload = token.split('.')[0]
+    if (!payload) return false
+    const normalized = payload.replace(/-/g, '+').replace(/_/g, '/')
+    const parsed = JSON.parse(atob(normalized.padEnd(Math.ceil(normalized.length / 4) * 4, '=')))
+    return parsed.sub === 'staff' && parsed.role === 'admin' && Number(parsed.exp) > Math.floor(Date.now() / 1000)
+  } catch {
+    return false
   }
 }
 
@@ -43,7 +61,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     set({ isLoading: true, error: null })
 
     try {
-      const response = await fetch('/api/auth/login', {
+      const response = await apiFetch('/api/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ identifier, password, pin }),
@@ -68,10 +86,11 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       }
       localStorage.setItem(STORAGE_KEY_AUTH, JSON.stringify(session))
       set({ user: session, token: session.token, isLoading: false, error: null })
+      window.dispatchEvent(new Event('latecuts:session-change'))
       return true
     } catch (err) {
       const message = err instanceof TypeError
-        ? 'Staff authentication is unavailable. Start the backend and configure STAFF_PIN on the server.'
+        ? 'Staff sign-in is unavailable. Start the backend and configure its secure credentials and database connection.'
         : err instanceof Error ? err.message : 'Staff sign-in failed. Please try again.'
       set({ isLoading: false, error: message })
       return false
@@ -82,7 +101,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     localStorage.removeItem(STORAGE_KEY_AUTH)
     localStorage.removeItem(LEGACY_STORAGE_KEY_AUTH)
     set({ user: null, token: null, error: null })
+    window.dispatchEvent(new Event('latecuts:session-change'))
   },
 
-  isAuthenticated: () => Boolean(get().user && get().token),
+  isAuthenticated: () => Boolean(get().user && get().token && sessionExpiresInFuture(get().token!)),
 }))
