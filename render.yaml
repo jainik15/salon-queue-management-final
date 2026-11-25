@@ -2,7 +2,7 @@ services:
   - type: web
     name: latecuts-api
     runtime: node
-    buildCommand: npm ci
+    buildCommand: npm ci --include=dev && npm run build
     startCommand: npm start
     healthCheckPath: /api/health
     autoDeployTrigger: 'off'
