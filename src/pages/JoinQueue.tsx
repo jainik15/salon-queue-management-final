@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import { useQueueStore } from '../stores/queueStore'
 import { getServiceDisplayName } from '../lib/utils'
@@ -12,6 +12,12 @@ const T = {
     sub: 'Choose your services, select your preferred barber, and join the queue with ease.',
     chooseService: 'Select Your Services',
     serviceHint: 'Choose one or more services. Your total price and estimated duration will update automatically.',
+    selected: 'Selected',
+    servicesLoading: 'Loading services…',
+    servicesError: 'We couldn’t load the service menu. Check your connection and try again.',
+    servicesEmpty: 'No services are available right now. Please try again shortly.',
+    servicesStale: 'The latest service menu could not be refreshed. Showing the last available menu.',
+    retry: 'Retry',
     chooseBarber: 'Choose Your Stylist',
     anyBarber: 'Fastest Available Stylist',
     anyBarberSub: 'Automated queue-load balancing',
@@ -32,6 +38,12 @@ const T = {
     sub: 'તમારી સેવાઓ પસંદ કરો, તમારા મનપસંદ બાર્બર પસંદ કરો અને સરળતાથી કતારમાં જોડાઓ.',
     chooseService: 'તમારી સેવાઓ પસંદ કરો',
     serviceHint: 'એક અથવા વધુ સેવાઓ પસંદ કરો. કુલ કિંમત અને અંદાજિત સમય આપમેળે અપડેટ થશે.',
+    selected: 'પસંદગી',
+    servicesLoading: 'સેવાઓ લોડ થઈ રહી છે…',
+    servicesError: 'સેવા યાદી લોડ થઈ શકી નથી. તમારું કનેક્શન તપાસીને ફરી પ્રયાસ કરો.',
+    servicesEmpty: 'હાલમાં કોઈ સેવા ઉપલબ્ધ નથી. કૃપા કરીને થોડી વાર પછી ફરી પ્રયાસ કરો.',
+    servicesStale: 'નવી સેવા યાદી લોડ થઈ શકી નથી. છેલ્લે ઉપલબ્ધ યાદી બતાવવામાં આવી રહી છે.',
+    retry: 'ફરી પ્રયાસ કરો',
     chooseBarber: 'તમારા સ્ટાઇલિસ્ટ પસંદ કરો',
     anyBarber: 'સૌથી વહેલા ઉપલબ્ધ સ્ટાઇલિસ્ટ',
     anyBarberSub: 'કતાર મુજબ આપમેળે ફાળવણી',
@@ -50,7 +62,7 @@ const T = {
 
 export default function JoinQueue() {
   const navigate = useNavigate()
-  const { barbers, services, addToQueue } = useQueueStore()
+  const { barbers, services, servicesStatus, refreshServices, addToQueue } = useQueueStore()
   const { lang, setLang } = useLocale()
   const [selectedServiceIds, setSelectedServiceIds] = useState<string[]>(['classic-cut'])
   const [selectedBarber, setSelectedBarber] = useState<string>('any')
@@ -59,6 +71,17 @@ export default function JoinQueue() {
   const [joining, setJoining] = useState(false)
   const joinRequestId = useRef('')
   const t = T[lang]
+
+  useEffect(() => {
+    if (servicesStatus === 'loading') return
+    setSelectedServiceIds(current => {
+      const validSelection = current.filter(id => services.some(service => service.id === id))
+      if (validSelection.length > 0) return validSelection
+      if (services.length === 0) return []
+      const defaultService = services.find(service => service.id === 'classic-cut') || services[0]
+      return [defaultService.id]
+    })
+  }, [services, servicesStatus])
 
   // Toggle multi-service
   const toggleService = (id: string) => {
@@ -79,13 +102,17 @@ export default function JoinQueue() {
 
   // Dynamic Stylist Recommendation based on selected services
   const recommendedBarber = (() => {
-    if (selectedServiceIds.includes('bridal') || selectedServiceIds.includes('head-spa')) return 'zara'
-    if (selectedServiceIds.includes('royal-fade') || selectedServiceIds.includes('classic-cut')) return 'marcus'
-    if (selectedServiceIds.includes('beard-sculpt') || selectedServiceIds.includes('kids-cut')) return 'dev'
+    const selectedIds = selectedServices.map(service => service.id)
+    if (selectedIds.includes('bridal') || selectedIds.includes('head-spa')) return 'zara'
+    if (selectedIds.includes('royal-fade') || selectedIds.includes('classic-cut')) return 'marcus'
+    if (selectedIds.includes('beard-sculpt') || selectedIds.includes('kids-cut')) return 'dev'
     return 'marcus'
   })()
 
   const handleJoin = async () => {
+    if (servicesStatus === 'loading') return setError(t.servicesLoading)
+    if (servicesStatus === 'empty') return setError(t.servicesEmpty)
+    if (servicesStatus === 'error') return setError(services.length > 0 ? t.servicesStale : t.servicesError)
     if (selectedServices.length === 0) return setError(t.selectService)
     if (!name.trim()) return setError(t.enterName)
     setError('')
@@ -174,12 +201,43 @@ export default function JoinQueue() {
           <div className="flex items-center justify-between mb-2">
             <h2 className="font-display text-lg sm:text-xl font-bold text-slate-900">{t.chooseService}</h2>
             <span className="text-xs font-semibold text-blue-600 bg-blue-50 px-2.5 py-1 rounded-full border border-blue-100">
-              {selectedServiceIds.length} Selected
+              {selectedServices.length} {t.selected}
             </span>
           </div>
           <p className="text-xs text-slate-500 mb-4">{t.serviceHint}</p>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2.5 sm:gap-3">
+            {servicesStatus === 'loading' && services.length === 0 && (
+              <div className="sm:col-span-2 md:col-span-3 rounded-2xl border border-blue-100 bg-white/80 p-5 text-sm text-slate-600" role="status" aria-live="polite">
+                {t.servicesLoading}
+              </div>
+            )}
+            {servicesStatus === 'error' && services.length === 0 && (
+              <div className="sm:col-span-2 md:col-span-3 rounded-2xl border border-rose-200 bg-rose-50 p-5 text-sm text-rose-800" role="alert">
+                <p>{t.servicesError}</p>
+                <button type="button" onClick={() => void refreshServices()} className="mt-3 min-h-10 rounded-xl border border-rose-300 px-4 font-semibold hover:bg-rose-100">
+                  {t.retry}
+                </button>
+              </div>
+            )}
+            {servicesStatus === 'empty' && services.length === 0 && (
+              <div className="sm:col-span-2 md:col-span-3 rounded-2xl border border-amber-200 bg-amber-50 p-5 text-sm text-amber-900" role="status">
+                <p>{t.servicesEmpty}</p>
+                <button type="button" onClick={() => void refreshServices()} className="mt-3 min-h-10 rounded-xl border border-amber-300 px-4 font-semibold hover:bg-amber-100">
+                  {t.retry}
+                </button>
+              </div>
+            )}
+            {servicesStatus === 'error' && services.length > 0 && (
+              <div className="sm:col-span-2 md:col-span-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900" role="status">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <span>{t.servicesStale}</span>
+                  <button type="button" onClick={() => void refreshServices()} className="min-h-10 rounded-xl border border-amber-300 px-4 font-semibold hover:bg-amber-100">
+                    {t.retry}
+                  </button>
+                </div>
+              </div>
+            )}
             {services.map(svc => {
               const active = selectedServiceIds.includes(svc.id)
               return (
@@ -359,8 +417,8 @@ export default function JoinQueue() {
         {/* Join CTA */}
         <button
           onClick={handleJoin}
-          disabled={joining}
-          className="w-full btn-primary py-4 text-base font-bold flex items-center justify-center gap-2"
+          disabled={joining || servicesStatus !== 'ready' || selectedServices.length === 0}
+          className="w-full btn-primary py-4 text-base font-bold flex items-center justify-center gap-2 disabled:cursor-not-allowed disabled:opacity-50"
         >
           {joining ? (
             <>

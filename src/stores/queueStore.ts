@@ -10,6 +10,8 @@ type NewQueueEntry = Omit<QueueEntry, 'id' | 'token' | 'position' | 'status' | '
   join_request_id?: string
 }
 
+export type ServiceCatalogStatus = 'loading' | 'ready' | 'empty' | 'error'
+
 function parseQueueItem(item: any): QueueEntry {
   const displayName = ({ zara: 'Ramesh', marcus: 'Vinod', dev: 'Arjun' } as Record<string, string>)[item.barber_id]
   return {
@@ -43,6 +45,8 @@ interface QueueStore {
   queue: QueueEntry[]
   barbers: Barber[]
   services: Service[]
+  servicesStatus: ServiceCatalogStatus
+  servicesError: string | null
   reviews: ReviewEntry[]
   nextTokenNum: number
   isLiveDbConnected: boolean
@@ -57,6 +61,7 @@ interface QueueStore {
   updateBarberStatus: (barberId: string, status: Barber['status']) => Promise<void>
   addFeedback: (accessToken: string, review: Pick<ReviewEntry, 'rating' | 'comment' | 'aspects'>) => Promise<void>
   initRealtimeSync: () => (() => void) | void
+  refreshServices: () => Promise<void>
   resetToSampleData: () => Promise<void>
   getBarberQueue: (barberId: string) => QueueEntry[]
   getCurrentlyServing: (barberId: string) => QueueEntry | undefined
@@ -65,28 +70,68 @@ interface QueueStore {
 
 export const useQueueStore = create<QueueStore>((set, get) => {
   let refreshInFlight: Promise<void> | null = null
+  let servicesRefreshInFlight: Promise<void> | null = null
+
+  const refreshServices = (): Promise<void> => {
+    if (servicesRefreshInFlight) return servicesRefreshInFlight
+    if (get().services.length === 0) set({ servicesStatus: 'loading', servicesError: null })
+
+    servicesRefreshInFlight = apiFetch('/api/services')
+      .then(async response => {
+        if (!response.ok) throw new Error(await readError(response))
+        const contentType = response.headers.get('content-type') || ''
+        if (!contentType.toLowerCase().includes('application/json')) {
+          throw new Error('The services endpoint did not return JSON. Check the configured API base URL.')
+        }
+
+        const data = await response.json()
+        if (!Array.isArray(data?.services)) throw new Error('The service catalog response is invalid.')
+        const services = data.services as Service[]
+        const validCatalog = services.every(service =>
+          service &&
+          typeof service.id === 'string' && service.id.length > 0 &&
+          typeof service.name_en === 'string' && typeof service.name_gu === 'string' &&
+          typeof service.icon === 'string' &&
+          Number.isFinite(service.duration) && Number.isFinite(service.price),
+        )
+        if (!validCatalog) throw new Error('The service catalog contains invalid entries.')
+
+        set({
+          services,
+          servicesStatus: services.length > 0 ? 'ready' : 'empty',
+          servicesError: null,
+        })
+      })
+      .catch(error => {
+        set({
+          servicesStatus: 'error',
+          servicesError: error instanceof Error ? error.message : 'The service menu could not be loaded.',
+        })
+      })
+      .finally(() => {
+        servicesRefreshInFlight = null
+      })
+
+    return servicesRefreshInFlight
+  }
 
   const refreshFromServer = (): Promise<void> => {
     if (refreshInFlight) return refreshInFlight
-    refreshInFlight = Promise.all([
-      apiFetch('/api/queue'),
-      apiFetch('/api/services'),
-    ]).then(async ([queueResponse, serviceResponse]) => {
+    void refreshServices()
+    refreshInFlight = apiFetch('/api/queue').then(async queueResponse => {
       if (!queueResponse.ok) throw new Error(await readError(queueResponse))
-      if (!serviceResponse.ok) throw new Error(await readError(serviceResponse))
-      const [queueData, serviceData] = await Promise.all([queueResponse.json(), serviceResponse.json()])
+      const queueData = await queueResponse.json()
       const queue: QueueEntry[] = Array.isArray(queueData.queue) ? (queueData.queue as unknown[]).map(parseQueueItem) : []
       const barbers = Array.isArray(queueData.barbers) ? presentBarbers(queueData.barbers) : []
       const reviews = Array.isArray(queueData.reviews) ? queueData.reviews.map((review: ReviewEntry) => ({
         ...review,
         barber_name: ({ zara: 'Ramesh', marcus: 'Vinod', dev: 'Arjun' } as Record<string, string>)[review.barber_id] || review.barber_name,
       })) : []
-      const services = Array.isArray(serviceData.services) ? serviceData.services as Service[] : []
       const nextTokenNum = queue.reduce<number>((max, entry) => {
         const number = Number(entry.token.match(/(\d+)$/)?.[1] || 0)
         return Math.max(max, number + 1)
       }, 1)
-      set({ queue, barbers, reviews, services, nextTokenNum, isLiveDbConnected: true, syncError: null })
+      set({ queue, barbers, reviews, nextTokenNum, isLiveDbConnected: true, syncError: null })
     }).catch(error => {
       set({ isLiveDbConnected: false, syncError: error instanceof Error ? error.message : 'Queue service is unavailable.' })
       throw error
@@ -111,6 +156,8 @@ export const useQueueStore = create<QueueStore>((set, get) => {
     queue: [],
     barbers: [],
     services: [],
+    servicesStatus: 'loading',
+    servicesError: null,
     reviews: [],
     nextTokenNum: 1,
     isLiveDbConnected: false,
@@ -227,6 +274,8 @@ export const useQueueStore = create<QueueStore>((set, get) => {
         if (queueBroadcast) queueBroadcast.onmessage = null
       }
     },
+
+    refreshServices,
 
     getBarberQueue: (barberId) => get().queue
       .filter(entry => entry.barber_id === barberId && (entry.status === 'waiting' || entry.status === 'serving'))
