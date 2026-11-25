@@ -9,6 +9,7 @@
     "start": "node server/server.js",
     "server": "node server/server.js",
     "build": "tsc && vite build",
+    "test": "node --test",
     "preview": "vite preview"
   },
   "engines": {

@@ -8,6 +8,7 @@ type NewQueueEntry = Omit<QueueEntry, 'id' | 'token' | 'position' | 'status' | '
   service_ids?: string[]
   isWalkIn?: boolean
   join_request_id?: string
+  barber_preference?: 'any' | 'specific'
 }
 
 export type ServiceCatalogStatus = 'loading' | 'ready' | 'empty' | 'error'
@@ -57,6 +58,7 @@ interface QueueStore {
   callNext: (barberId: string) => Promise<void>
   markDone: (id: string) => Promise<void>
   markAbsent: (id: string) => Promise<void>
+  removeWaitingEntry: (id: string) => Promise<void>
   cancelQueueEntry: (accessToken: string) => Promise<void>
   updateBarberStatus: (barberId: string, status: Barber['status']) => Promise<void>
   addFeedback: (accessToken: string, review: Pick<ReviewEntry, 'rating' | 'comment' | 'aspects'>) => Promise<void>
@@ -172,6 +174,7 @@ export const useQueueStore = create<QueueStore>((set, get) => {
           service: getServiceDisplayName(entry.service),
           service_duration: entry.service_duration,
           barber_id: entry.barber_id,
+          barber_preference: isWalkIn ? 'specific' : entry.barber_preference || 'specific',
           language: entry.language,
           service_ids: service_ids || [],
           join_request_id: join_request_id || makeRequestId(),
@@ -198,6 +201,11 @@ export const useQueueStore = create<QueueStore>((set, get) => {
 
     markDone: async (id) => get().updateStatus(id, 'completed'),
     markAbsent: async (id) => get().updateStatus(id, 'absent'),
+
+    removeWaitingEntry: async (id) => {
+      await postStaffAction('/api/queue/remove-waiting', { id })
+      broadcastStateChange('QUEUE_REFRESH', null)
+    },
 
     cancelQueueEntry: async (accessToken) => {
       const response = await apiFetch('/api/queue/cancel', {

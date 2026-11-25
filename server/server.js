@@ -402,6 +402,7 @@ const server = http.createServer(async (req, res) => {
       const body = await parseBody(req)
       const customerName = typeof body.customer_name === 'string' ? body.customer_name.trim() : ''
       const barberId = typeof body.barber_id === 'string' ? body.barber_id : ''
+      const anyStylist = !isWalkIn && body.barber_preference === 'any'
       const language = body.language === 'gu' ? 'gu' : 'en'
       if (!customerName || customerName.length > 80 || !barberId) {
         sendJson(res, 400, { success: false, message: 'A customer name and stylist are required.' })
@@ -413,7 +414,7 @@ const server = http.createServer(async (req, res) => {
         return
       }
       const requestId = validUuid(body.join_request_id) ? body.join_request_id : randomUUID()
-      const { data, error } = await SUPABASE.rpc('join_queue', {
+      const { data, error } = await SUPABASE.rpc('join_queue_with_preference', {
         p_customer_name: customerName,
         p_service: typeof body.service === 'string' ? body.service : '',
         p_service_duration: Number.isInteger(body.service_duration) ? body.service_duration : null,
@@ -421,7 +422,17 @@ const server = http.createServer(async (req, res) => {
         p_language: language,
         p_join_request_id: requestId,
         p_service_ids: serviceIds,
+        p_any_stylist: anyStylist,
       })
+      if (error && ['stylist_unavailable', 'no_stylist_available'].includes(error.message)) {
+        sendJson(res, 409, {
+          success: false,
+          message: error.message === 'stylist_unavailable'
+            ? 'That stylist is unavailable. Please choose another stylist.'
+            : 'No stylists are currently available. Please try again shortly.',
+        })
+        return
+      }
       if (error) throw Object.assign(new Error('queue_join_rejected'), { databaseCode: error.code })
       const entry = normalizeEntry(data)
       broadcastSSE('QUEUE_UPDATE', { token: entry.token, service: entry.service, barber_name: entry.barber_name })
@@ -478,9 +489,25 @@ const server = http.createServer(async (req, res) => {
       if (typeof body.id !== 'string' || !body.id) { sendJson(res, 400, { success: false, message: 'Queue entry id is required.' }); return }
       const status = pathname.endsWith('mark-done') ? 'completed' : 'absent'
       const { data, error } = await SUPABASE.rpc('transition_queue_entry', { p_entry_id: body.id, p_status: status })
+      if (error?.message === 'no_show_not_ready') {
+        sendJson(res, 409, { success: false, message: 'A no-show can be recorded 10 minutes after the customer is called.' })
+        return
+      }
       if (error) throw Object.assign(new Error('queue_transition_rejected'), { databaseCode: error.code })
       if (!data) { sendJson(res, 404, { success: false, message: 'Queue entry not found.' }); return }
       broadcastSSE(status === 'completed' ? 'MARK_DONE' : 'MARK_ABSENT', { token: data.token })
+      sendJson(res, 200, { success: true, entry: normalizeEntry(data) })
+      return
+    }
+
+    if (req.method === 'POST' && pathname === '/api/queue/remove-waiting') {
+      if (!requireStaff(req, res) || !requireDatabase(res)) return
+      const body = await parseBody(req)
+      if (typeof body.id !== 'string' || !body.id) { sendJson(res, 400, { success: false, message: 'Queue entry id is required.' }); return }
+      const { data, error } = await SUPABASE.rpc('remove_waiting_queue_entry', { p_entry_id: body.id })
+      if (error) throw Object.assign(new Error('waiting_entry_removal_rejected'), { databaseCode: error.code })
+      if (!data) { sendJson(res, 404, { success: false, message: 'Queue entry not found.' }); return }
+      broadcastSSE('MARK_ABSENT', { token: data.token })
       sendJson(res, 200, { success: true, entry: normalizeEntry(data) })
       return
     }

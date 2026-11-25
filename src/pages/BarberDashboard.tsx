@@ -3,6 +3,8 @@ import { useParams, Link } from 'react-router-dom'
 import { useQueueStore } from '../stores/queueStore'
 import { getServiceDisplayName } from '../lib/utils'
 import { playChime } from '../lib/audio'
+import { useLocale } from '../lib/locale'
+import { getNoShowSecondsRemaining, isNoShowEligible, NO_SHOW_GRACE_SECONDS } from '../lib/noShowPolicy.js'
 import { Scissors, CheckCircle, UserX, Bell, Coffee, Clock, ArrowLeft, AlertCircle, ArrowUp } from 'lucide-react'
 
 export default function BarberDashboard() {
@@ -10,6 +12,7 @@ export default function BarberDashboard() {
   const routeId = id || 'marcus'
   const barberId = ({ ramesh: 'zara', vinod: 'marcus', arjun: 'dev' } as Record<string, string>)[routeId] || routeId
   const { queue, barbers, syncError, callNext, markDone, markAbsent, updateBarberStatus } = useQueueStore()
+  const { t } = useLocale()
 
   const barber = barbers.find(b => b.id === barberId)
   const currentlyServing = barber ? queue.find(e => e.barber_id === barber.id && e.status === 'serving') : undefined
@@ -41,6 +44,10 @@ export default function BarberDashboard() {
   const targetSeconds = (currentlyServing?.service_duration || 25) * 60
   const progressPercent = Math.min(100, Math.floor((serviceTimer / targetSeconds) * 100))
   const isOvertime = serviceTimer > targetSeconds
+  const noShowSecondsRemaining = currentlyServing?.timestamp_called
+    ? getNoShowSecondsRemaining(currentlyServing.timestamp_called, Date.now())
+    : NO_SHOW_GRACE_SECONDS
+  const canMarkNoShow = Boolean(currentlyServing?.timestamp_called && isNoShowEligible(currentlyServing.timestamp_called, Date.now()))
 
   const handleCallNext = () => {
     if (!barber) return
@@ -212,12 +219,13 @@ export default function BarberDashboard() {
                   <button
                     onClick={() => {
                       void markAbsent(currentlyServing.id)
-                        .catch(error => window.alert(error instanceof Error ? error.message : 'Customer could not be marked absent.'))
+                        .catch(error => window.alert(error instanceof Error ? t(error.message) : t('Customer could not be marked absent.')))
                     }}
-                    className="py-3.5 px-4 rounded-xl text-sm font-bold flex items-center justify-center gap-2 transition-all bg-white/10 hover:bg-white/20 text-rose-200 border border-rose-300/30"
+                    disabled={!canMarkNoShow}
+                    className="py-3.5 px-4 rounded-xl text-sm font-bold flex items-center justify-center gap-2 transition-all bg-white/10 hover:bg-white/20 text-rose-200 border border-rose-300/30 disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     <UserX size={18} />
-                    <span>No-Show / Skip</span>
+                    <span>{canMarkNoShow ? t('No-Show / Skip') : `${t('No-show available in')} ${formatTimer(noShowSecondsRemaining)}`}</span>
                   </button>
                 </div>
               </div>

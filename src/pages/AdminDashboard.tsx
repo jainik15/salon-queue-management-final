@@ -3,12 +3,14 @@ import { Link, useNavigate } from 'react-router-dom'
 import { useQueueStore } from '../stores/queueStore'
 import { useAuthStore } from '../stores/authStore'
 import { getServiceDisplayName } from '../lib/utils'
+import { useLocale } from '../lib/locale'
 import { LoungeQRCode } from '../components/ui/QRCode'
 import { Scissors, Users, TrendingUp, Plus, UserX, ArrowLeft, BarChart3, QrCode, Sparkles, Moon, Database, Search, Filter, Play, Pause, LogOut } from 'lucide-react'
 
 export default function AdminDashboard() {
-  const { queue, barbers, services, addToQueue, updateBarberStatus, updateStatus, resetToSampleData } = useQueueStore()
+  const { queue, barbers, services, addToQueue, updateBarberStatus, updateStatus, removeWaitingEntry, resetToSampleData } = useQueueStore()
   const { logout, user } = useAuthStore()
+  const { t } = useLocale()
   const navigate = useNavigate()
   const [showWalkinModal, setShowWalkinModal] = useState(false)
   const [showQRModal, setShowQRModal] = useState(false)
@@ -42,9 +44,8 @@ export default function AdminDashboard() {
     if (!services.length || !barbers.length) return
     const randomService = services[Math.floor(Math.random() * services.length)]
     const activeBarbers = barbers.filter(b => b.status === 'available')
-    const targetBarber = activeBarbers.length > 0
-      ? activeBarbers[Math.floor(Math.random() * activeBarbers.length)]
-      : barbers[0]
+    if (activeBarbers.length === 0) return
+    const targetBarber = activeBarbers[Math.floor(Math.random() * activeBarbers.length)]
 
     void addToQueue({
       customer_name: randomName,
@@ -55,7 +56,7 @@ export default function AdminDashboard() {
       language: 'en',
       service_ids: [randomService.id],
       isWalkIn: true,
-    }).catch(error => window.alert(error instanceof Error ? error.message : 'The simulation could not be added.'))
+    }).catch(error => window.alert(error instanceof Error ? t(error.message) : t('The simulation could not be added.')))
   }
 
   // Auto-simulator interval effect
@@ -96,7 +97,7 @@ export default function AdminDashboard() {
       setWalkinName('')
       setShowWalkinModal(false)
     }).catch(error => {
-      window.alert(error instanceof Error ? error.message : 'The walk-in could not be added.')
+      window.alert(error instanceof Error ? t(error.message) : t('The walk-in could not be added.'))
     })
 
   }
@@ -470,8 +471,8 @@ export default function AdminDashboard() {
                         {entry.status === 'waiting' && (
                           <button
                             onClick={() => {
-                              void updateStatus(entry.id, 'absent')
-                                .catch(error => window.alert(error instanceof Error ? error.message : 'Queue entry could not be removed.'))
+                              void removeWaitingEntry(entry.id)
+                                .catch(error => window.alert(error instanceof Error ? t(error.message) : t('Waiting customer could not be removed.')))
                             }}
                             className="text-xs px-2.5 py-1 rounded-lg font-bold text-rose-600 hover:bg-rose-50 border border-transparent hover:border-rose-200 transition-colors"
                           >

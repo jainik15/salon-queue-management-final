@@ -119,9 +119,9 @@ export default function JoinQueue() {
     setJoining(true)
     if (!joinRequestId.current) joinRequestId.current = crypto.randomUUID()
 
-    const barberId = selectedBarber === 'any'
-      ? barbers.filter(b => b.status === 'available').sort((a, b) => a.queue_count - b.queue_count)[0]?.id || recommendedBarber
-      : selectedBarber
+    // Keep the displayed recommendation as a legacy request value; the API resolves
+    // “any” against the current available queues inside the database transaction.
+    const barberId = selectedBarber === 'any' ? recommendedBarber : selectedBarber
 
     const barber = barbers.find(b => b.id === barberId)!
 
@@ -132,6 +132,7 @@ export default function JoinQueue() {
         service_duration: totalDuration,
         barber_id: barberId,
         barber_name: barber?.name || '',
+        barber_preference: selectedBarber === 'any' ? 'any' : 'specific',
         language: lang,
         service_ids: selectedServices.map(service => service.id),
         join_request_id: joinRequestId.current,
