@@ -62,8 +62,10 @@ function isSecureStaffPin(pin) {
   return !((step === 1 || step === -1) && digits.every((digit, index) => index === 0 || digit - digits[index - 1] === step))
 }
 
-const staffPinConfigured = isSecureStaffPin(STAFF_PIN)
-const sessionConfigValid = staffPinConfigured && STAFF_SESSION_SECRET_CONFIGURED
+const staffPinIssue = !STAFF_PIN ? 'missing' : isSecureStaffPin(STAFF_PIN) ? null : 'invalid'
+const sessionSecretIssue = !STAFF_SESSION_SECRET ? 'missing' : STAFF_SESSION_SECRET_CONFIGURED ? null : 'too short'
+const staffPinConfigured = staffPinIssue === null
+const sessionConfigValid = staffPinConfigured && sessionSecretIssue === null
 
 function matchesSecret(candidate, expected) {
   if (typeof candidate !== 'string' || !expected) return false
@@ -285,7 +287,7 @@ const server = http.createServer(async (req, res) => {
   try {
     if (req.method === 'GET' && pathname === '/api/health') {
       if (!SUPABASE) {
-        sendJson(res, 503, { status: 'unavailable', database: 'not-configured', timestamp: new Date().toISOString() })
+        sendJson(res, 503, { status: 'unavailable', database: 'not-configured', staffAuth: sessionConfigValid ? 'configured' : 'not-configured', timestamp: new Date().toISOString() })
         return
       }
       const readinessQueries = await Promise.all([
@@ -297,10 +299,10 @@ const server = http.createServer(async (req, res) => {
         SUPABASE.from('reviews').select('id').limit(0),
       ])
       if (readinessQueries.some(result => result.error)) {
-        sendJson(res, 503, { status: 'unavailable', database: 'not-ready', timestamp: new Date().toISOString() })
+        sendJson(res, 503, { status: 'unavailable', database: 'not-ready', staffAuth: sessionConfigValid ? 'configured' : 'not-configured', timestamp: new Date().toISOString() })
         return
       }
-      sendJson(res, 200, { status: 'ok', database: 'connected', storage: 'supabase-postgresql', timestamp: new Date().toISOString() })
+      sendJson(res, 200, { status: 'ok', database: 'connected', storage: 'supabase-postgresql', staffAuth: sessionConfigValid ? 'configured' : 'not-configured', timestamp: new Date().toISOString() })
       return
     }
 
@@ -535,7 +537,7 @@ server.keepAliveTimeout = 65000
 server.listen(PORT, '0.0.0.0', () => {
   console.log(`LateCuts Node API listening on port ${PORT}`)
   console.log(`Database configuration: ${SUPABASE ? 'Supabase credentials present' : 'missing; APIs will fail closed'}`)
-  if (!staffPinConfigured) console.warn('Staff login is disabled until a valid backend STAFF_PIN is configured.')
-  if (!STAFF_SESSION_SECRET_CONFIGURED) console.warn('Staff login is disabled until a 32+ character STAFF_SESSION_SECRET is configured.')
+  if (staffPinIssue) console.warn(`Staff auth configuration: STAFF_PIN ${staffPinIssue}.`)
+  if (sessionSecretIssue) console.warn(`Staff auth configuration: STAFF_SESSION_SECRET ${sessionSecretIssue}.`)
   console.log(`CORS allowed origins configured: ${allowedOrigins.size}`)
 })
