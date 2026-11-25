@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react'
-import { getServiceDisplayName } from '../../lib/utils'
+import { formatQueueToken, getServiceDisplayName } from '../../lib/utils'
 import { Bell, Sparkles, CheckCircle2, UserCheck, Scissors } from 'lucide-react'
 
 export interface ToastMessage {
@@ -33,7 +33,7 @@ export const LiveToastContainer: React.FC = () => {
       const { type, data = {} } = (event as CustomEvent<{ type: string; data: Record<string, string> }>).detail || {}
       if (type === 'QUEUE_UPDATE') {
         addToast({
-          title: `New Guest Checked In · ${data.token || ''}`,
+          title: `New Guest Checked In · ${formatQueueToken(data.token || '')}`,
           description: `Joined line for ${getServiceDisplayName(data.service || '')} (${data.barber_name || 'stylist'})`,
           icon: 'join',
         })

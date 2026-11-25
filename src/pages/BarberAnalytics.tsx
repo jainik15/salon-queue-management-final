@@ -3,7 +3,7 @@ import { Link, useNavigate } from 'react-router-dom'
 import { useQueueStore } from '../stores/queueStore'
 import { useAuthStore } from '../stores/authStore'
 import { useLocale } from '../lib/locale'
-import { getServiceDisplayName } from '../lib/utils'
+import { formatQueueToken, getServiceDisplayName } from '../lib/utils'
 import {
   TrendingUp,
   BarChart3,
@@ -129,7 +129,7 @@ export default function BarberAnalytics() {
     const rows = filteredQueue
       .map(
         q =>
-          `${q.token},"${q.customer_name}","${getServiceDisplayName(q.service)}","${q.barber_name}",${q.status},${q.service_duration},${q.estimated_wait},"${new Date(q.timestamp_joined).toLocaleTimeString()}"`
+          `${formatQueueToken(q.token)},"${q.customer_name}","${getServiceDisplayName(q.service)}","${q.barber_name}",${q.status},${q.service_duration},${q.estimated_wait},"${new Date(q.timestamp_joined).toLocaleTimeString()}"`
       )
       .join('\n')
     const blob = new Blob([headers + rows], { type: 'text/csv' })
@@ -455,7 +455,7 @@ export default function BarberAnalytics() {
                         {currentlyServing ? (
                           <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
                             <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                            Chair: {currentlyServing.token} (<span data-locale-skip>{currentlyServing.customer_name}</span>)
+                            Chair: {formatQueueToken(currentlyServing.token)} (<span data-locale-skip>{currentlyServing.customer_name}</span>)
                           </span>
                         ) : barber.status === 'break' ? (
                           <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold bg-amber-100 text-amber-800 border border-amber-200">
@@ -518,7 +518,7 @@ export default function BarberAnalytics() {
                   <div className="flex items-center gap-1.5">
                     <span data-locale-skip className="font-bold text-slate-900">{rev.customer_name}</span>
                     <span className="text-[10px] px-1.5 py-0.5 rounded bg-blue-100 text-blue-700 font-mono font-bold">
-                      {rev.token}
+                      {formatQueueToken(rev.token)}
                     </span>
                   </div>
                   <div className="flex items-center gap-1 text-amber-500 font-bold">

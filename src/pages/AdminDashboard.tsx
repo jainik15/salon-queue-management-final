@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useQueueStore } from '../stores/queueStore'
 import { useAuthStore } from '../stores/authStore'
-import { getServiceDisplayName } from '../lib/utils'
+import { formatQueueToken, getServiceDisplayName } from '../lib/utils'
 import { useLocale } from '../lib/locale'
 import { LoungeQRCode } from '../components/ui/QRCode'
 import { Scissors, Users, TrendingUp, Plus, UserX, ArrowLeft, BarChart3, QrCode, Sparkles, Moon, Database, Search, Filter, Play, Pause, LogOut } from 'lucide-react'
@@ -109,7 +109,7 @@ export default function AdminDashboard() {
     .filter(item => {
       if (!searchQuery.trim()) return true
       const q = searchQuery.toLowerCase()
-      return item.customer_name.toLowerCase().includes(q) || item.token.toLowerCase().includes(q) || item.service.toLowerCase().includes(q)
+      return item.customer_name.toLowerCase().includes(q) || formatQueueToken(item.token).toLowerCase().includes(q) || item.token.toLowerCase().includes(q) || item.service.toLowerCase().includes(q)
     })
 
   return (
@@ -361,7 +361,7 @@ export default function AdminDashboard() {
                   <div className="space-y-1.5 text-xs py-2.5 border-t border-b border-blue-100/60 mb-3">
                     <div className="flex justify-between">
                       <span className="text-slate-500">Current In Chair:</span>
-                      <strong className="text-blue-900 font-bold">{inChair ? <><span data-locale-skip>{inChair.token}</span> (<span data-locale-skip>{inChair.customer_name}</span>)</> : 'Available'}</strong>
+                      <strong className="text-blue-900 font-bold">{inChair ? <><span data-locale-skip>{formatQueueToken(inChair.token)}</span> (<span data-locale-skip>{inChair.customer_name}</span>)</> : 'Available'}</strong>
                     </div>
                     <div className="flex justify-between">
                       <span className="text-slate-500">Waitlist:</span>
@@ -447,7 +447,7 @@ export default function AdminDashboard() {
                   filteredQueue.map(entry => (
                     <tr key={entry.id} className="hover:bg-blue-50/40 transition-colors">
                       <td data-label="Token" data-label-gu="ટોકન" className="py-3 font-mono font-black text-blue-700">
-                        {entry.token}
+                        {formatQueueToken(entry.token)}
                       </td>
                       <td data-label="Customer" data-label-gu="ગ્રાહક" className="py-3 font-bold text-slate-900">
                         <span data-locale-skip>{entry.customer_name}</span>

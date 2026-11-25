@@ -4,7 +4,7 @@ import { useQueueStore } from '../stores/queueStore'
 import { playChime } from '../lib/audio'
 import { LoungeQRCode } from '../components/ui/QRCode'
 import { useLocale } from '../lib/locale'
-import { getServiceDisplayName } from '../lib/utils'
+import { formatQueueToken, getServiceDisplayName } from '../lib/utils'
 import { Scissors, Volume2, VolumeX, Maximize2, Sparkles, Clock, ArrowRight, QrCode } from 'lucide-react'
 
 export default function LiveDisplay() {
@@ -190,7 +190,7 @@ export default function LiveDisplay() {
                       </div>
 
                       <div className="token-number text-6xl my-1 leading-none font-black">
-                        {currentlyServing.token}
+                        {formatQueueToken(currentlyServing.token)}
                       </div>
 
                       <div className="font-display text-2xl font-black text-slate-950 tracking-wide mt-1">
@@ -234,7 +234,7 @@ export default function LiveDisplay() {
                               ? 'bg-sky-400 text-blue-950 shadow-sm'
                               : 'bg-white/10 text-white'
                           }`}>
-                            {entry.token}
+                            {formatQueueToken(entry.token)}
                           </span>
                           <div>
                             <div data-locale-skip className="text-sm font-semibold text-white">{entry.customer_name}</div>

@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { useQueueStore } from '../stores/queueStore'
 import { apiFetch } from '../lib/api'
-import { formatWait, getOrdinal, getServiceDisplayName } from '../lib/utils'
+import { formatQueueToken, formatWait, getOrdinal, getServiceDisplayName } from '../lib/utils'
 import type { QueueEntry } from '../types'
 import { Scissors, Bell, ArrowLeft, Clock, CheckCircle2, UserCheck, Sparkles, Navigation } from 'lucide-react'
 
@@ -171,7 +171,7 @@ export default function CustomerToken() {
                 <span className={`text-4xl font-black tracking-tight leading-none ${
                   isYourTurn ? 'token-number-light' : 'token-number'
                 }`}>
-                  {entry.token}
+                  {formatQueueToken(entry.token)}
                 </span>
                 <span className={`text-[10px] font-bold mt-1 px-2 py-0.5 rounded-full ${
                   isYourTurn
@@ -291,7 +291,7 @@ export default function CustomerToken() {
                     <div key={q.id} className="flex items-center justify-between p-2 rounded-xl bg-blue-50/50">
                       <div className="flex items-center gap-2">
                         <span className={`font-mono font-bold ${q.id === entry.id ? 'text-blue-700' : 'text-slate-600'}`}>
-                          {q.token}
+                          {formatQueueToken(q.token)}
                         </span>
                         <span className={q.id === entry.id ? 'font-bold text-blue-900' : 'text-slate-600'}>
                           {q.id === entry.id ? 'You' : <span data-locale-skip>{q.customer_name}</span>}
@@ -324,7 +324,7 @@ export default function CustomerToken() {
           <div className="w-full max-w-sm rounded-3xl p-6 bg-white shadow-2xl border border-slate-100 animate-slide-up">
             <h3 className="font-display text-xl font-bold text-slate-950 mb-2">Leave the Queue?</h3>
             <p className="text-xs text-slate-600 mb-6 leading-relaxed">
-              If you release token <strong className="text-blue-700">{entry.token}</strong>, your spot will be forfeited and you will need to re-join from the end of the line.
+              If you release token <strong className="text-blue-700">{formatQueueToken(entry.token)}</strong>, your spot will be forfeited and you will need to re-join from the end of the line.
             </p>
             <div className="grid grid-cols-2 gap-3">
               <button

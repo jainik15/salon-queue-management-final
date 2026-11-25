@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { useQueueStore } from '../stores/queueStore'
-import { getServiceDisplayName } from '../lib/utils'
+import { formatQueueToken, getServiceDisplayName } from '../lib/utils'
 import { playChime } from '../lib/audio'
 import { useLocale } from '../lib/locale'
 import { getNoShowSecondsRemaining, isNoShowEligible, NO_SHOW_GRACE_SECONDS } from '../lib/noShowPolicy.js'
@@ -166,7 +166,7 @@ export default function BarberDashboard() {
               <div>
                   <div className="lc-current-customer-heading flex items-baseline justify-between mb-2">
                   <div className="token-number-light text-5xl sm:text-7xl font-black tracking-tight">
-                    {currentlyServing.token}
+                    {formatQueueToken(currentlyServing.token)}
                   </div>
                   <div className="text-right">
                     <span className="text-xs text-blue-200 block">Scheduled Time</span>
@@ -296,7 +296,7 @@ export default function BarberDashboard() {
                             ? 'bg-blue-600 text-white'
                             : 'bg-slate-100 text-slate-700'
                         }`}>
-                          {item.token}
+                          {formatQueueToken(item.token)}
                         </span>
                         <div>
                           <div data-locale-skip className="font-bold text-sm text-slate-950">{item.customer_name}</div>

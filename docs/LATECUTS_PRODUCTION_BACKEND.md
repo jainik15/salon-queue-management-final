@@ -41,7 +41,7 @@ The migration inserts these values and updates only matching service-catalog row
 
 ## Queue and privacy behavior
 
-- Join, token allocation, position calculation and service validation run in a PostgreSQL RPC transaction. Existing token format (`LX-##`), IDs and duration values are retained.
+- Join, token allocation, position calculation and service validation run in a PostgreSQL RPC transaction. The database currently stores queue tokens with the legacy `LX-##` prefix; the API and frontend format them as `LC-##` for display, leaving stored queue rows and private pass tokens unchanged.
 - Position remains the number of waiting customers for that stylist plus one; estimated wait remains `position × stylist average duration`, matching the current Node join behavior. Existing estimates are not silently recalculated when a customer is called, completed or cancelled.
 - The database prevents more than one `serving` row per stylist. `call_next` locks the stylist and selects the earliest waiting row. A repeated request with the same `join_request_id` returns the existing entry.
 - The check-in form collects only a name, not a stable customer identity. Idempotency prevents retries of the same check-in request from creating duplicates. It cannot safely identify two separately submitted check-ins by the same human; adding phone/email-based identity would require a separate product decision and privacy review.

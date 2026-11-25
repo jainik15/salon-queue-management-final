@@ -4,6 +4,7 @@ import path from 'path'
 import { createHmac, randomUUID, timingSafeEqual } from 'crypto'
 import { fileURLToPath } from 'url'
 import { createClient } from '@supabase/supabase-js'
+import { formatQueueToken } from '../src/lib/queueToken.js'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
@@ -108,7 +109,11 @@ function normalizeBarber(row) {
 }
 
 function normalizeEntry(row) {
-  return { ...row, barber_name: STYLIST_DISPLAY_NAMES[row.barber_id] || row.barber_name }
+  return {
+    ...row,
+    token: formatQueueToken(row.token),
+    barber_name: STYLIST_DISPLAY_NAMES[row.barber_id] || row.barber_name,
+  }
 }
 
 const jsonHeaders = { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' }
@@ -216,7 +221,10 @@ async function getQueueSnapshot(isStaff) {
       served_today: servedTodayByBarber.get(barber.id) || 0,
     }
   })
-  if (isStaff) return { queue, barbers, reviews: reviewResult.data || [] }
+  if (isStaff) {
+    const reviews = (reviewResult.data || []).map(review => ({ ...review, token: formatQueueToken(review.token) }))
+    return { queue, barbers, reviews }
+  }
   return {
     queue: queue.map(entry => ({
       id: entry.id,
@@ -447,7 +455,7 @@ const server = http.createServer(async (req, res) => {
       const { data, error } = await SUPABASE.rpc('cancel_queue_entry', { p_public_access_token: body.access_token })
       if (error) throw Object.assign(new Error('queue_cancel_rejected'), { databaseCode: error.code })
       if (!data) { sendJson(res, 404, { success: false, message: 'Queue pass not found.' }); return }
-      broadcastSSE('MARK_ABSENT', { token: data.token })
+      broadcastSSE('MARK_ABSENT', { token: formatQueueToken(data.token) })
       sendJson(res, 200, { success: true, entry: publicEntry(normalizeEntry(data)) })
       return
     }
@@ -495,7 +503,7 @@ const server = http.createServer(async (req, res) => {
       }
       if (error) throw Object.assign(new Error('queue_transition_rejected'), { databaseCode: error.code })
       if (!data) { sendJson(res, 404, { success: false, message: 'Queue entry not found.' }); return }
-      broadcastSSE(status === 'completed' ? 'MARK_DONE' : 'MARK_ABSENT', { token: data.token })
+      broadcastSSE(status === 'completed' ? 'MARK_DONE' : 'MARK_ABSENT', { token: formatQueueToken(data.token) })
       sendJson(res, 200, { success: true, entry: normalizeEntry(data) })
       return
     }
@@ -507,7 +515,7 @@ const server = http.createServer(async (req, res) => {
       const { data, error } = await SUPABASE.rpc('remove_waiting_queue_entry', { p_entry_id: body.id })
       if (error) throw Object.assign(new Error('waiting_entry_removal_rejected'), { databaseCode: error.code })
       if (!data) { sendJson(res, 404, { success: false, message: 'Queue entry not found.' }); return }
-      broadcastSSE('MARK_ABSENT', { token: data.token })
+      broadcastSSE('MARK_ABSENT', { token: formatQueueToken(data.token) })
       sendJson(res, 200, { success: true, entry: normalizeEntry(data) })
       return
     }

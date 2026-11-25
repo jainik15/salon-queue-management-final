@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { useQueueStore } from '../stores/queueStore'
 import { triggerConfetti } from '../lib/confetti'
-import { getServiceDisplayName } from '../lib/utils'
+import { formatQueueToken, getServiceDisplayName } from '../lib/utils'
 import { apiFetch } from '../lib/api'
 import type { QueueEntry } from '../types'
 import { Scissors, Star, ThumbsUp, ThumbsDown, CheckCircle, ArrowRight, Heart } from 'lucide-react'
@@ -110,7 +110,7 @@ export default function CustomerFeedback() {
             {/* Patron Summary */}
             <div className="text-center mb-6">
               <span className="text-xs uppercase tracking-widest font-mono font-bold px-3 py-1 rounded-lg inline-block mb-3 bg-blue-50 text-blue-700 border border-blue-100">
-                TOKEN: {entry.token}
+                TOKEN: {formatQueueToken(entry.token)}
               </span>
               <h1 className="font-display text-3xl font-black text-slate-950">How was your visit?</h1>
               <p className="text-xs text-slate-500 mt-1">
