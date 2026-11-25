@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import { useQueueStore } from '../stores/queueStore'
 import { getServiceDisplayName } from '../lib/utils'
-import { Scissors, Clock, ChevronRight, Sparkles, Check, Zap } from 'lucide-react'
+import { Scissors, Clock, ChevronRight, Check, Zap } from 'lucide-react'
 import { useLocale } from '../lib/locale'
 
 const T = {
@@ -21,7 +21,7 @@ const T = {
     chooseBarber: 'Choose Your Stylist',
     anyBarber: 'Fastest Available Stylist',
     anyBarberSub: 'Automated queue-load balancing',
-    yourName: 'Your First Name',
+    yourName: 'Enter your Name:',
     namePlaceholder: 'e.g. Liam, Sophia, Rohan…',
     joinBtn: 'Join Lounge Queue',
     waiting: 'in line',
@@ -47,7 +47,7 @@ const T = {
     chooseBarber: 'તમારા સ્ટાઇલિસ્ટ પસંદ કરો',
     anyBarber: 'સૌથી વહેલા ઉપલબ્ધ સ્ટાઇલિસ્ટ',
     anyBarberSub: 'કતાર મુજબ આપમેળે ફાળવણી',
-    yourName: 'તમારું નામ',
+    yourName: 'તમારું નામ દાખલ કરો:',
     namePlaceholder: 'તમારું નામ લખો',
     joinBtn: 'કતારમાં જોડાઓ',
     waiting: 'કતારમાં',
@@ -177,11 +177,6 @@ export default function JoinQueue() {
         
         {/* Hero Section */}
         <div className="mt-2 sm:mt-4 mb-6 sm:mb-8 text-center sm:text-left">
-          <div className="inline-flex items-center gap-2 text-xs font-bold px-3.5 py-1.5 rounded-full mb-3 sm:mb-4 bg-blue-100/90 text-blue-700 border border-blue-200/80 shadow-sm">
-            <Sparkles size={13} className="text-blue-600 animate-spin-slow" />
-            <span>Digital Concierge · Real-Time Calculation</span>
-          </div>
-
           <h1 className="font-display w-full max-w-2xl break-words text-[2rem] sm:text-4xl lg:text-5xl font-black text-slate-950 tracking-tight leading-[1.15] mb-3">
             {t.headline}
           </h1>
