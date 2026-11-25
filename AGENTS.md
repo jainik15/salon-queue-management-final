@@ -1,26 +1,38 @@
-# AGENTS.md — LUXE CUTS Architecture Rules
-> **Historical baseline instructions:** This file records the original LUXE CUTS blue/white, English/Hindi and Zara/Marcus/Dev requirements. For LateCuts work, use `docs/LATECUTS_PROJECT_SPECIFICATION.md` for confirmed product decisions and `docs/LATECUTS_PRESERVATION_CHECKLIST.md` for preservation requirements. Do not treat superseded identity choices below as current LateCuts requirements; retain the underlying feature and queue behavior.
+# AGENTS.md — LateCuts Project Rules
 
-## Instructions for AI Agents & Developers
+> The original LUXE CUTS identity and baseline specifications remain in the historical project documents. For current product decisions, use [`docs/LATECUTS_PROJECT_SPECIFICATION.md`](docs/LATECUTS_PROJECT_SPECIFICATION.md) and [`docs/LATECUTS_PRESERVATION_CHECKLIST.md`](docs/LATECUTS_PRESERVATION_CHECKLIST.md).
 
-### Project Overview
-LUXE CUTS is a production-grade, real-time salon queue orchestration platform built with React + Vite + TypeScript + Tailwind CSS + Node.js.
+## Project overview
 
-### Core Working Rules
-1. **Design System:**
-   - Preserve LateCuts' premium dark luxury direction and existing screen behavior.
-   - Avoid broad, unrelated redesigns during backend and deployment work.
-2. **State Management & Storage:**
-   - Zustand `src/stores/queueStore.ts` is the frontend state cache, not the source of truth.
-   - Persistent queue and catalog reads/writes go through `server/server.js` to Supabase PostgreSQL.
-   - `/api/events` sends redacted SSE notices. BroadcastChannel messages are invalidation notices only; never put customer records in them.
-   - `server/data/database.json` is legacy local data. Keep it untouched and ignored; do not restore JSON fallback behavior.
-3. **Audio & Sensory Feedback:**
-   - Web Audio API pure synthesizer (528 Hz / 1056 Hz harmonic tone) for chime alerts.
-   - Canvas physics engine for feedback confetti.
-4. **Security & Routes:**
-   - Client route guards are usability only; protected API actions must verify the signed staff session in the Node backend.
-   - Staff username is `staff`; credentials come only from backend `STAFF_PIN` and `STAFF_SESSION_SECRET` environment variables.
-   - `SUPABASE_SERVICE_ROLE_KEY` stays on the Node host. Never expose it through Vite, `VITE_*`, source code, logs, or docs.
-   - Supabase RLS must not grant anonymous/authenticated access to customer queue data. Public API projections must omit other customers' names and contact details.
-   - Configure explicit `CORS_ALLOWED_ORIGINS`; never use wildcard CORS.
+LateCuts is a salon queue and floor-management application. The current stack is React, TypeScript, Vite, Zustand, a Node.js API, Supabase PostgreSQL, Vercel, and Render.
+
+## Product identity
+
+- Use the LateCuts name and premium dark luxury visual direction.
+- Supported interface languages are English and Gujarati. Do not introduce Hindi as a product language.
+- The official service catalog and prices are listed in the current project specification. Preserve the catalog IDs, durations, ordering, selection behavior, and queue calculations unless specifically approved.
+- Display Ramesh, Vinod, and Arjun while preserving the existing stylist IDs and relationships.
+
+## Architecture and data
+
+- `src/stores/queueStore.ts` is the client-side queue view cache. The Node API and Supabase PostgreSQL are the shared persistence path.
+- Queue reads, writes, validation, and protected mutations go through `server/server.js`; do not restore the legacy JSON file as a source of truth or fallback.
+- Supabase migrations are versioned under `supabase/migrations/`. Check the target project's migration history before applying SQL. Never reset, reseed, or delete customer/queue data without an approved backup and explicit authorization.
+- Server-Sent Events carry the API's event notices. `BroadcastChannel` is an invalidation signal only; do not put customer records or private tokens in it.
+- Preserve existing routes, API contracts, queue workflows, and historical record references when making changes.
+
+## Security
+
+- Staff authentication is server-side. The username is `staff`; the secure `STAFF_PIN` and `STAFF_SESSION_SECRET` are backend environment variables only.
+- Keep `SUPABASE_SERVICE_ROLE_KEY` on the Node host. Never expose it through Vite, `VITE_*` variables, browser code, logs, or documentation.
+- Protect staff API mutations with the signed server session. Client route guards are not an authorization boundary.
+- Keep CORS configured with exact approved origins. Never use wildcard CORS.
+- Do not commit real `.env` files, credentials, private database files, or customer data.
+
+## Change and verification rules
+
+- Keep product copy and documentation aligned with the latest confirmed LateCuts decisions; label original LUXE CUTS material as historical rather than treating it as current requirements.
+- Do not change service behavior, queue rules, authentication, schema, or deployment settings as incidental cleanup.
+- Before code changes, inspect the actual route/component/data path and existing working-tree changes. Preserve unrelated local edits.
+- Run the relevant build and tests for code changes. Report checks that could not be performed; do not claim unverified production behavior.
+- Do not apply production SQL, alter external accounts, deploy, or publish without explicit authorization.

@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="LateCuts">
+  <rect width="64" height="64" rx="16" fill="#171512"/>
+  <rect x="2" y="2" width="60" height="60" rx="14" fill="none" stroke="#C78B43" stroke-width="1.5"/>
+  <path d="M15 16v31h14" fill="none" stroke="#F3EBDD" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M34 18h15M41.5 18v29" fill="none" stroke="#C78B43" stroke-width="2.5" stroke-linecap="round"/>
+  <path d="M34 47h15" fill="none" stroke="#F3EBDD" stroke-width="2.5" stroke-linecap="round"/>
+</svg>

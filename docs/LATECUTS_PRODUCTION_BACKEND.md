@@ -2,12 +2,14 @@
 
 ## Status
 
-This document describes the backend integration and deployment configuration prepared in this change. No Supabase migration was applied, no production database was contacted or changed, and no Render or Vercel deployment was performed. The local `server/data/database.json` remains untouched and ignored; it is no longer read by the API.
+The owner reports that the production frontend and API are deployed, `/api/health` reports Supabase connected and staff authentication configured, `/api/services` returns the approved catalog, and login, check-in, barber visibility, service completion, Served Today, CORS, and the updated check-in form were manually verified on 2026-11-25. This audit did not access production accounts or inspect deployment environment values. The current Render/Vercel origins and Supabase migration-history version are not recorded in this repository; verify them in their respective dashboards before further release changes. The local `server/data/database.json` remains untouched and ignored; it is not read by the API.
+
+Forward migration `supabase/migrations/202611250002_queue_release_blockers.sql` and matching API/UI changes are prepared locally but have not been applied to Supabase or deployed. The updated API requires that migration before it is deployed. Do not deploy the changed API first.
 
 ## Target architecture
 
 - **Vercel:** React + TypeScript + Vite static frontend (`npm run build`, output `dist`). Vercel SPA rewrites preserve direct routes.
-- **Render:** Long-running Node.js HTTP API (`npm run server`) and persistent Server-Sent Events (`GET /api/events`). Keep one API instance until SSE events are fanned out through a shared broker or Supabase Realtime is verified across instances.
+- **Render:** Long-running Node.js HTTP API (`npm start`) and persistent Server-Sent Events (`GET /api/events`). Keep one API instance until SSE events are fanned out through a shared broker or Supabase Realtime is verified across instances.
 - **Supabase:** Authoritative PostgreSQL storage. The frontend never creates a Supabase client. The Render API uses the backend-only service-role key and RLS is enabled without anonymous/authenticated data policies.
 - **Browser state:** Zustand is a view cache. API responses hydrate it; mutations go through Node. Browser storage and BroadcastChannel do not persist or broadcast queue/customer records.
 
@@ -42,7 +44,7 @@ The migration inserts these values and updates only matching service-catalog row
 ## Queue and privacy behavior
 
 - Join, token allocation, position calculation and service validation run in a PostgreSQL RPC transaction. The database currently stores queue tokens with the legacy `LX-##` prefix; the API and frontend format them as `LC-##` for display, leaving stored queue rows and private pass tokens unchanged.
-- Position remains the number of waiting customers for that stylist plus one; estimated wait remains `position × stylist average duration`, matching the current Node join behavior. Existing estimates are not silently recalculated when a customer is called, completed or cancelled.
+- Position is recalculated across waiting customers for that stylist after joins, calls, completions, cancellations and reception removals. Estimated wait remains `position × stylist average duration`, matching the established rule; the forward migration does not backfill existing estimates until the next queue mutation.
 - The database prevents more than one `serving` row per stylist. `call_next` locks the stylist and selects the earliest waiting row. A repeated request with the same `join_request_id` returns the existing entry.
 - The check-in form collects only a name, not a stable customer identity. Idempotency prevents retries of the same check-in request from creating duplicates. It cannot safely identify two separately submitted check-ins by the same human; adding phone/email-based identity would require a separate product decision and privacy review.
 - Public `GET /api/queue` and SSE include only active queue rows and replace customer names with a generic label. They do not return phone/contact fields or pass tokens. Staff queue data requires a signed staff bearer session.
@@ -75,8 +77,8 @@ Public operations are limited to check-in, private-pass lookup/cancellation and 
 
 `render.yaml` prepares a Node web service with:
 
-- Build: `npm ci`
-- Start: `npm run server`
+- Build: `npm ci --include=dev && npm run build`
+- Start: `npm start`
 - Health check: `/api/health`
 - Runtime: Node.js 20 or newer
 - Auto deploy: disabled in the blueprint
@@ -104,7 +106,7 @@ select barber_id, count(*) from public.queue_entries where status = 'serving' gr
 select status, count(*) from public.queue_entries group by status order by status;
 ```
 
-3. Obtain explicit approval to apply the migration to the intended Supabase project. The migration has not been run by this change.
+3. The owner reports that the production schema and RPCs are live, based on the reported health response and successful join/completion flows. This repository has not queried Supabase migration history, so verify whether migration `202611250001_latecuts_backend.sql` is recorded before applying or modifying any migration. Do not rerun SQL blindly against production.
 4. Apply the SQL migration to a staging project first. Verify table grants/RLS using anon, authenticated and service-role clients; only the backend service role should read/write customer rows.
 5. Local `server/data/database.json` records are not automatically imported. A separate import plan/tool, verified backup, field mapping, duplicate-token plan, and approval are required before migrating them.
 6. Plan how to issue private access links for pre-existing queue records. Do not restore public lookup by sequential token or database ID as a workaround.
@@ -131,4 +133,6 @@ select status, count(*) from public.queue_entries group by status order by statu
 
 ## Verification state and limitations
 
-The repository has no automated test script at this point. The implementation must still be validated with the production build, Node syntax check, API fail-closed checks, and—after a staging migration—database/RLS, authentication, concurrent queue transition, feedback, and two-client SSE checks. No Supabase credentials were added by this change. A single Render instance is required for the current in-memory SSE fan-out; cross-instance SSE delivery needs a shared event bus or a verified Supabase Realtime bridge. In-memory rate limits also reset on restart and are per API process.
+Repository checks on 2026-11-25: `npm run build`, `node --check server/server.js`, and `npm test` passed. The current Node built-in test covers the client no-show countdown boundary; it does not exercise PostgreSQL transactions. The owner-reported production checks are listed at the top of this guide; they are not automated results from this repository audit.
+
+Still requiring release evidence: apply and test the forward migration in staging; verify wait reflow, unavailable-stylist rejection, and the database-side 10-minute no-show boundary under concurrent requests; verify the current `VITE_API_BASE_URL` in Vercel, exact Render CORS origin entries, direct refresh for every production route, role-based Supabase access using anon/authenticated/service-role clients, and remaining regression cases in `docs/03-flows-rules.md`. The current code uses in-memory SSE fan-out, so multiple Render instances need a shared event bus or a verified Supabase Realtime bridge. In-memory rate limits reset on restart and are per API process. The service-role key and staff credentials must remain backend-only and are not documented here.
